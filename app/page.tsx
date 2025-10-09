@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 const trainPasses = [
   {
     id: 1,
-    name: "JR Pass 7 วัน",
+    name: "JR Pass 7 - 8 วัน",
     nameEn: "JR Pass 7 Days",
     days: 7,
     region: "ทั่วประเทศ",
