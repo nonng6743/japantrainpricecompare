@@ -1,0 +1,17 @@
+{
+  "watch": [
+    "."
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules",
+    "*.png",
+    "*.jpg",
+    "*.jpeg"
+  ],
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": "1000"
+}
+
