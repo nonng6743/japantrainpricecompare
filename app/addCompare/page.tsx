@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default function ContactPage() {
   const [nameParamiter, setNameParamiter] = useState("");
   const [nameProduct, setNameProduct] = useState("");
-  const [nameProductMin, setPriceProductMin] = useState("");
+  const [namePriceProductMin, setPriceProductMin] = useState("");
   const [priceProduct, setPriceProduct] = useState("");
   const [urlKKDay, setUrlKKDay] = useState("");
   const [urlKLook, setUrlKLook] = useState("");
@@ -20,9 +20,9 @@ export default function ContactPage() {
 
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();  // ป้องกันไม่ให้ฟอร์ม submit
-
+    alert(nameParamiter)
     try {
-      const response = await fetch(`https://api.japanallpass.com/api/products/${nameParamiter}`, {
+      const response = await fetch(`https://api.japanallpass.com/api/products/product_read_paramiter?product_params=${nameParamiter}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -36,14 +36,13 @@ export default function ContactPage() {
         return;
       } else {
         // สมมติว่าคุณต้องการแสดงราคาจาก "Child (Age 6-11)"
-        const productPlans = data.data.products_plans;
-        const childPlan = productPlans.find((plan: { name: string; }) => plan.name === "Adult (Age 12 & up)");
+        const product = data.data[0];
 
         // เช็คว่าเจอข้อมูลแล้วหรือไม่
-        if (childPlan) {
-          alert(`ราคาของสินค้า: ${childPlan.product_price}`);  // แสดงราคาใน alert
-          setPriceProduct(childPlan.product_price);
-          setNameProduct(data.data.products[0].product_name);
+        if (product) {
+          alert(`ราคาของสินค้า: ${product.product_price}`);  // แสดงราคาใน alert
+          setPriceProduct(product.product_price);
+          setNameProduct(product.product_name);
         } else {
           alert('ไม่พบข้อมูลราคา');
         }
@@ -65,6 +64,7 @@ export default function ContactPage() {
       no_product: nameParamiter,
       name_product: nameProduct,
       price_product: priceProduct,
+      price_product_min: namePriceProductMin,
       url_kkday: urlKKDay,
       url_klook: urlKLook,
       detail: detail,
@@ -90,7 +90,6 @@ export default function ContactPage() {
 
       if (data.success) {
         // Handle successful response
-        alert("ข้อมูลถูกบันทึกแล้ว!" + data.klook.fullText);
         // Reset form
         setNameParamiter("");
         setNameProduct("");
