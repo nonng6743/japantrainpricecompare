@@ -10,7 +10,12 @@ const port = 3005;
 const WEBHOOK_SECRET = 'japantrainpricecompare@1111';
 
 // รองรับทั้ง JSON และ form-urlencoded
-app.use(bodyParser.json());
+app.use(bodyParser.json({
+  verify: (req, res, buf) => {
+    // เก็บ raw payload สำหรับ signature verification
+    req.rawBody = buf;
+  }
+}));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.get('/', async (req, res) => {
@@ -20,7 +25,14 @@ app.get('/', async (req, res) => {
 // ฟังก์ชันตรวจสอบ GitHub webhook signature
 function verifySignature(payload, signature, secret) {
   const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(payload, 'utf8');
+  
+  // Handle both string and buffer payloads
+  if (Buffer.isBuffer(payload)) {
+    hmac.update(payload);
+  } else {
+    hmac.update(payload, 'utf8');
+  }
+  
   const digest = 'sha256=' + hmac.digest('hex');
   
   console.log('Expected signature:', digest);
@@ -33,15 +45,19 @@ function verifySignature(payload, signature, secret) {
 app.post('/webhook', (req, res) => {
   const payload = req.body;
   const signature = req.headers['x-hub-signature-256'];
+  const rawPayload = req.rawBody || JSON.stringify(payload);
 
   console.log('Headers:', req.headers);
   console.log('Content-Type:', req.headers['content-type']);
   console.log('Payload type:', typeof payload);
-  console.log('Payload:', JSON.stringify(payload, null, 2));
+  console.log('Raw payload length:', rawPayload.length);
+  console.log('Signature:', signature);
 
   // ตรวจสอบ webhook signature
-  if (!signature || !verifySignature(JSON.stringify(payload), signature, WEBHOOK_SECRET)) {
+  if (!signature || !verifySignature(rawPayload, signature, WEBHOOK_SECRET)) {
     console.log('Invalid webhook signature');
+    console.log('Expected signature:', 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(rawPayload, 'utf8').digest('hex'));
+    console.log('Received signature:', signature);
     return res.status(401).send('Unauthorized');
   }
 
