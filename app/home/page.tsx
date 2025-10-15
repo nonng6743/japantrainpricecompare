@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Search, Filter, ExternalLink, Zap, Calendar, MapPin, Users, Star, Clock, RefreshCw } from "lucide-react"
+import { Search, Filter, ExternalLink, Calendar, MapPin, Users, Star, Clock, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,102 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
-// Mock data for train passes
-const trainPasses = [
-  {
-    id: 1,
-    name: "JR Pass 7 วัน",
-    nameEn: "JR Pass 7 Days",
-    days: 7,
-    region: "ทั่วประเทศ",
-    regionEn: "Nationwide",
-    adultPrice: true,
-    childPrice: true,
-    flexible: false,
-    onSale: false,
-    lastUpdated: "2024-01-26 14:00",
-    prices: {
-      klook: { adult: 88000, child: 44000, url: "https://klook.com/jr-pass-7" },
-      kkday: { adult: 87950, child: 43975, url: "https://kkday.com/jr-pass-7" },
-      japanAllPass: { adult: 87980, child: 43990, url: "https://japanallpass.com/jr-pass-7" },
-    },
-  },
-  {
-    id: 2,
-    name: "JR Pass 14 วัน",
-    nameEn: "JR Pass 14 Days",
-    days: 14,
-    region: "ทั่วประเทศ",
-    regionEn: "Nationwide",
-    adultPrice: true,
-    childPrice: true,
-    flexible: false,
-    onSale: true,
-    lastUpdated: "2024-01-26 14:00",
-    prices: {
-      klook: { adult: 142000, child: 71000, url: "https://klook.com/jr-pass-14" },
-      kkday: { adult: 141500, child: 70750, url: "https://kkday.com/jr-pass-14" },
-      japanAllPass: { adult: 141800, child: 70900, url: "https://japanallpass.com/jr-pass-14" },
-    },
-  },
-  {
-    id: 3,
-    name: "JR East Pass (Tohoku Area) 5 วัน",
-    nameEn: "JR East Pass (Tohoku Area) 5 Days",
-    days: 5,
-    region: "JR East",
-    regionEn: "JR East",
-    adultPrice: true,
-    childPrice: true,
-    flexible: true,
-    onSale: false,
-    lastUpdated: "2024-01-26 14:00",
-    prices: {
-      klook: { adult: 19350, child: 9675, url: "https://klook.com/jr-east-tohoku-5" },
-      kkday: { adult: 19200, child: 9600, url: "https://kkday.com/jr-east-tohoku-5" },
-      japanAllPass: { adult: 19400, child: 9700, url: "https://japanallpass.com/jr-east-tohoku-5" },
-    },
-  },
-  {
-    id: 4,
-    name: "Kansai Area Pass 3 วัน",
-    nameEn: "Kansai Area Pass 3 Days",
-    days: 3,
-    region: "Kansai",
-    regionEn: "Kansai",
-    adultPrice: true,
-    childPrice: true,
-    flexible: false,
-    onSale: true,
-    lastUpdated: "2024-01-26 14:00",
-    prices: {
-      klook: { adult: 5500, child: 2750, url: "https://klook.com/kansai-3" },
-      kkday: { adult: 5400, child: 2700, url: "https://kkday.com/kansai-3" },
-      japanAllPass: { adult: 5450, child: 2725, url: "https://japanallpass.com/kansai-3" },
-    },
-  },
-  {
-    id: 5,
-    name: "Hokuriku Arch Pass 7 วัน",
-    nameEn: "Hokuriku Arch Pass 7 Days",
-    days: 7,
-    region: "Hokuriku",
-    regionEn: "Hokuriku",
-    adultPrice: true,
-    childPrice: true,
-    flexible: true,
-    onSale: false,
-    lastUpdated: "2024-01-26 14:00",
-    prices: {
-      klook: { adult: 25000, child: 12500, url: "https://klook.com/hokuriku-arch-7" },
-      kkday: { adult: 24800, child: 12400, url: "https://kkday.com/hokuriku-arch-7" },
-      japanAllPass: { adult: 24900, child: 12450, url: "https://japanallpass.com/hokuriku-arch-7" },
-    },
-  },
-]
-
 export default function HomePage() {
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState("");  // เพิ่ม useState สำหรับ searchTerm
+  const [trainPasses, setTrainPasses] = useState<any[]>([]);
   const [selectedDays, setSelectedDays] = useState("all")
   const [selectedRegion, setSelectedRegion] = useState("all")
   const [showOnSaleOnly, setShowOnSaleOnly] = useState(false)
@@ -114,11 +21,96 @@ export default function HomePage() {
   const [lastUpdate, setLastUpdate] = useState(new Date())
   const [isFilterOpen, setIsFilterOpen] = useState(false)
 
-  // Auto-update every hour
+  const [products, setProducts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true)
+        setError("")
+
+        console.log("🔍 กำลังเรียก API: http://localhost:4000/api/scrape")
+        const response = await fetch("http://localhost:4000/api/scrape")
+
+        console.log("📡 Response status:", response.status)
+        if (!response.ok) throw new Error(`API Error: ${response.status}`)
+
+        const result = await response.json()
+        console.log("📦 API raw result:", result)
+
+        let dataArray: any[] = []
+
+        if (Array.isArray(result)) {
+          dataArray = result
+        } else if (Array.isArray(result.data)) {
+          dataArray = result.data
+        } else if (Array.isArray(result.products)) {
+          dataArray = result.products
+        } else {
+          console.warn("⚠️ ไม่พบ array ใน result:", result)
+        }
+
+        const dataArray0 = [
+          {
+            id: 1,
+            name: "JR Pass 7 วัน",
+            nameEn: "JR Pass 7 Days",
+            days: 7,
+            region: "ทั่วประเทศ",
+            regionEn: "Nationwide",
+            adultPrice: true,
+            childPrice: true,
+            flexible: false,
+            onSale: false,
+            lastUpdated: "2024-01-26 14:00",
+            prices: {
+              klook: { adult: 88000, child: 44000, url: "https://klook.com/jr-pass-7" },
+              kkday: { adult: 87950, child: 43975, url: "https://kkday.com/jr-pass-7" },
+              japanAllPass: { adult: 87980, child: 43990, url: "https://japanallpass.com/jr-pass-7" },
+            },
+          }
+        ];
+
+        const mappedData = dataArray.map(item => ({
+          id: item._id,
+          name: item.name_product,
+          nameEn: item.name_product,
+          days: null,
+          region: "ทั่วประเทศ",
+          regionEn: "Nationwide",
+          adultPrice: true,
+          childPrice: true,
+          flexible: false,
+          onSale: false,
+          lastUpdated: null,
+          prices:
+          {
+            klook: { adult: item.maxPrice_klook, child: null, url: item.url_klook },
+            kkday: { adult: item.maxPrice_kkday, child: null, url: item.url_kkday },
+            japanAllPass: { adult: item.price_product, child: null, url: "https://japanallpass.com/products/"+item.no_product },
+          },
+        }));
+
+        setTrainPasses(mappedData);
+
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error"
+        setError(`Network Error: ${errorMessage}`)
+        console.error("❌ Error fetching products:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProducts()
+  }, [])
+
   useEffect(() => {
     const interval = setInterval(() => {
       setLastUpdate(new Date())
-    }, 3600000) // 1 hour = 3600000ms
+    }, 3600000)
 
     return () => clearInterval(interval)
   }, [])
@@ -134,7 +126,7 @@ export default function HomePage() {
 
       return matchesSearch && matchesDays && matchesRegion && matchesOnSale
     })
-  }, [searchTerm, selectedDays, selectedRegion, showOnSaleOnly])
+  }, [searchTerm, selectedDays, selectedRegion, showOnSaleOnly, trainPasses])
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("th-TH").format(price)
@@ -164,7 +156,6 @@ export default function HomePage() {
 
   const FilterContent = () => (
     <div className="space-y-4">
-      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
         <Input
@@ -175,7 +166,6 @@ export default function HomePage() {
         />
       </div>
 
-      {/* Filters */}
       <div className="grid grid-cols-1 gap-4">
         <div>
           <Label className="text-sm font-medium mb-2 block">จำนวนวัน</Label>
