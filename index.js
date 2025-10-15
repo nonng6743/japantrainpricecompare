@@ -378,7 +378,7 @@ app.get('/api/scrape/:id', async (req, res) => {
 });
 
 app.get('/', async (req, res) => {
-  res.send('Hello api');
+  res.send('Hello web api');
 });
 
 
