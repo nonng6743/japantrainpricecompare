@@ -12,6 +12,8 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [error, setError] = useState("")
+  const apiUrl = process.env.API_URL;
+  const apiKey = process.env.API_KEY;
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -19,8 +21,8 @@ export default function ProductsPage() {
         setLoading(true)
         setError("")
 
-        console.log("🔍 กำลังเรียก API: http://localhost:4000/api/scrape")
-        const response = await fetch("http://localhost:4000/api/scrape")
+        console.log(`🔍 กำลังเรียก API: ${apiUrl}api/scrape`)
+        const response = await fetch(`${apiUrl}api/scrape`)
 
         console.log("📡 Response status:", response.status)
         if (!response.ok) throw new Error(`API Error: ${response.status}`)
