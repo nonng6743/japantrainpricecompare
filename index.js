@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import open from 'open';
@@ -9,6 +10,8 @@ import ScrapeData from './models/ScrapeData.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const SCREENSHOT_WAIT_TIME = parseInt(process.env.SCREENSHOT_WAIT_TIME) || 5000;
+const OCR_LANGUAGES = process.env.OCR_LANGUAGES || 'eng+tha';
 
 // Middleware
 app.use(cors());
@@ -28,13 +31,13 @@ async function scrapeFullJson(url) {
     await open(url);
 
     // รอให้หน้าเว็บโหลด
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, SCREENSHOT_WAIT_TIME));
 
     const filename = 'price_screenshot.png';
     await screenshot({ filename });
 
     console.log("🔍 Running OCR...");
-    const result = await Tesseract.recognize(filename, 'eng+tha');
+    const result = await Tesseract.recognize(filename, OCR_LANGUAGES);
     const text = result.data.text;
 
     console.log("✅ Full OCR text preview:", text.substring(0, 300) + "...");
@@ -75,14 +78,14 @@ async function scrapeWithOCR(url) {
     await open(url);
 
     // Wait for page to load and take screenshot (adjust time as needed)
-    await new Promise(resolve => setTimeout(resolve, 5000));  // Wait for 5 seconds for the page to load
+    await new Promise(resolve => setTimeout(resolve, SCREENSHOT_WAIT_TIME));
 
     const filename = 'kkday.png';
     console.log('📸 Capturing screenshot...');
     await screenshot({ filename });
 
     console.log('🔍 Reading text from screenshot...');
-    const result = await Tesseract.recognize(filename, 'eng+tha');
+    const result = await Tesseract.recognize(filename, OCR_LANGUAGES);
     const text = result.data.text;
 
     console.log('\n✅ Extracted text:\n', text.substring(0, 500) + '...');
@@ -252,14 +255,14 @@ app.post('/api/scrape-price', async (req, res) => {
     await open(url);
 
     // รอให้หน้าเว็บโหลดเสร็จ
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, SCREENSHOT_WAIT_TIME));
 
     const filename = 'price_screenshot.png';
     console.log('📸 Capturing screenshot...');
     await screenshot({ filename });
 
     console.log('🔍 Reading text from screenshot...');
-    const result = await Tesseract.recognize(filename, 'eng+tha');
+    const result = await Tesseract.recognize(filename, OCR_LANGUAGES);
     const text = result.data.text;
 
     console.log('✅ Extracted text preview:', text.substring(0, 300) + '...');
@@ -372,6 +375,10 @@ app.get('/api/scrape/:id', async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+app.get('/', async (req, res) => {
+  res.send('Hello World api');
 });
 
 
