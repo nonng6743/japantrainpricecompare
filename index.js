@@ -9,7 +9,9 @@ const port = 3005;
 // GitHub webhook secret (ควรเก็บใน environment variable)
 const WEBHOOK_SECRET = 'japantrainpricecompare@1111';
 
+// รองรับทั้ง JSON และ form-urlencoded
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 app.get('/', async (req, res) => {
     res.send('Hello webhook api');
@@ -20,6 +22,10 @@ function verifySignature(payload, signature, secret) {
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(payload, 'utf8');
   const digest = 'sha256=' + hmac.digest('hex');
+  
+  console.log('Expected signature:', digest);
+  console.log('Received signature:', signature);
+  
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
 }
 
@@ -27,6 +33,11 @@ function verifySignature(payload, signature, secret) {
 app.post('/webhook', (req, res) => {
   const payload = req.body;
   const signature = req.headers['x-hub-signature-256'];
+
+  console.log('Headers:', req.headers);
+  console.log('Content-Type:', req.headers['content-type']);
+  console.log('Payload type:', typeof payload);
+  console.log('Payload:', JSON.stringify(payload, null, 2));
 
   // ตรวจสอบ webhook signature
   if (!signature || !verifySignature(JSON.stringify(payload), signature, WEBHOOK_SECRET)) {
