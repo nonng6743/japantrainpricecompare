@@ -3,6 +3,22 @@ import ScrapeData from '../models/ScrapeData.js';
 
 export const scrapeController = {
   // POST /api/scrape - Scrape both KKDay and KLook URLs
+
+  async scrapeBothloop(req, res) {
+    try {
+      
+      const data = await ScrapeData.find().sort({ createdAt: -1 });
+
+      for (const item of data) {
+        console.log(item)
+      }
+      res.json({ success: true, count: data.length });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+
+  },
+
   async scrapeBoth(req, res) {
     const { no_product, name_product, price_product, url_kkday, url_klook, detail } = req.body;
 
@@ -91,9 +107,9 @@ export const scrapeController = {
     const { url } = req.body;
 
     if (!url) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'URL is required' 
+      return res.status(400).json({
+        success: false,
+        error: 'URL is required'
       });
     }
 
@@ -107,9 +123,9 @@ export const scrapeController = {
       });
     } catch (error) {
       console.error('❌ Error during price scraping:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: error.message 
+      res.status(500).json({
+        success: false,
+        error: error.message
       });
     }
   },

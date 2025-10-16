@@ -3,6 +3,10 @@ import { scrapeController } from '../controllers/scrapeController.js';
 
 const router = express.Router();
 
+
+// POST /api/scrape - Scrape both KKDay and KLook URLs
+router.get('/scrapeloop', scrapeController.scrapeBothloop);
+
 // POST /api/scrape - Scrape both KKDay and KLook URLs
 router.post('/', scrapeController.scrapeBoth);
 
