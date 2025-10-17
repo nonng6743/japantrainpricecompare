@@ -237,7 +237,7 @@ class KKdayScraper:
             }
 
     def scrape_with_selenium(self):
-        """Scrape using Selenium for JavaScript-heavy content (Ubuntu-friendly)"""
+        """Scrape using Selenium for JavaScript-heavy content"""
         try:
             from selenium import webdriver
             from selenium.webdriver.common.by import By
@@ -247,30 +247,39 @@ class KKdayScraper:
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
             import shutil
             
-            # Resolve Chrome binary on Ubuntu/servers
+            # Check for Chrome binary on Ubuntu server
             chrome_paths = [
                 '/usr/bin/google-chrome',
-                '/usr/bin/google-chrome-stable',
+                '/usr/bin/google-chrome-stable', 
                 '/usr/bin/chromium-browser',
                 '/usr/bin/chromium',
                 '/snap/bin/chromium',
                 '/opt/google/chrome/chrome'
             ]
-            chrome_binary = next((p for p in chrome_paths if shutil.which(p) or os.path.exists(p)), None)
-
+            
+            chrome_binary = None
+            for path in chrome_paths:
+                if shutil.which(path) or os.path.exists(path):
+                    chrome_binary = path
+                    logger.info(f"Found Chrome binary at: {chrome_binary}")
+                    break
+            
+            # Setup Chrome options for server environment
             chrome_options = Options()
-            # Use headless for servers
-            chrome_options.add_argument('--headless=new')
+            chrome_options.add_argument('--headless')  # Use headless for server
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
             chrome_options.add_argument('--disable-extensions')
             chrome_options.add_argument('--disable-plugins')
-            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--disable-images')  # Faster loading
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+            
+            # Set Chrome binary location if found
             if chrome_binary:
                 chrome_options.binary_location = chrome_binary
             
