@@ -1,4 +1,4 @@
-import tempfile  # Import the tempfile module
+import tempfile  # Import tempfile to create a unique temporary directory
 import shutil
 import os
 import time
@@ -9,8 +9,16 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+# Ensure any previous user data directory is cleaned up
+def clean_up_temp_dir(directory):
+    if os.path.exists(directory):
+        shutil.rmtree(directory)
+
 # Create a unique temporary directory for Chrome user data
 temp_user_data_dir = tempfile.mkdtemp()
+
+# Clean up any previous session's user data directory before use
+clean_up_temp_dir(temp_user_data_dir)
 
 # Configure Chrome options for normal browser mode (like a regular user)
 chrome_options = Options()
@@ -75,9 +83,5 @@ finally:
     driver.quit()
 
     # Clean up temporary user data directory
-    if os.path.exists(temp_user_data_dir):
-        try:
-            shutil.rmtree(temp_user_data_dir)
-            print("Cleaned up temporary Chrome user data directory")
-        except Exception as e:
-            print(f"Warning: Could not clean up temporary directory: {e}")
+    clean_up_temp_dir(temp_user_data_dir)
+    print("Cleaned up temporary Chrome user data directory")
