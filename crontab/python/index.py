@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Web Scraping Script for KKday Product Page
-URL: https://www.kkday.com/en/product/158964?qs=JR+TOKYO+Wide+Pass
-XPath: /html/body/div[2]/div[2]/div/div/div[2]/div[1]/div/div/div[2]/div[1]/div[1]/div[1]/div[1]/div/div/div/div/div[2]
-"""
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,7 +5,6 @@ import time
 import json
 from urllib.parse import urljoin, urlparse
 import logging
-import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -254,11 +247,8 @@ class KKdayScraper:
             
             # Setup Chrome options for visible browser (not headless)
             chrome_options = Options()
-            
-            # Create unique user data directory for each session
-            unique_profile = os.path.join(os.getcwd(), f"profile_{int(time.time())}")
-            chrome_options.add_argument(f'--user-data-dir={unique_profile}')
-            
+            # Remove headless mode to show browser
+            # chrome_options.add_argument('--headless')  # Commented out to show browser
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
