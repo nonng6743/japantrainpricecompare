@@ -240,6 +240,8 @@ class KKdayScraper:
         import tempfile
         import shutil
         import os
+        import subprocess
+        import time
         
         temp_dir = None
         driver = None
@@ -252,13 +254,27 @@ class KKdayScraper:
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
             
+            # Kill any existing Chrome processes to avoid conflicts
+            try:
+                # Check if Chrome is running
+                result = subprocess.run(['pgrep', '-f', 'chrome'], capture_output=True, text=True)
+                if result.stdout.strip():
+                    logger.info(f"Found existing Chrome processes: {result.stdout.strip()}")
+                    subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+                    time.sleep(3)  # Wait for processes to terminate
+                    logger.info("Killed existing Chrome processes")
+                else:
+                    logger.info("No existing Chrome processes found")
+            except Exception as e:
+                logger.warning(f"Could not check/kill Chrome processes: {e}")
+            
             # Create a unique temporary directory for user data
             temp_dir = tempfile.mkdtemp(prefix='chrome_user_data_')
             
-            # Setup Chrome options for visible browser (not headless)
+            # Setup Chrome options - try multiple approaches
             chrome_options = Options()
-            # Remove headless mode to show browser
-            # chrome_options.add_argument('--headless')  # Commented out to show browser
+            
+            # Basic options
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
@@ -266,12 +282,9 @@ class KKdayScraper:
             chrome_options.add_experimental_option('useAutomationExtension', False)
             chrome_options.add_argument('--disable-extensions')
             chrome_options.add_argument('--disable-plugins')
-            chrome_options.add_argument('--disable-images')  # Faster loading
+            chrome_options.add_argument('--disable-images')
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-            
-            # Use unique user data directory to avoid conflicts
-            chrome_options.add_argument(f'--user-data-dir={temp_dir}')
             
             # Additional options to prevent conflicts
             chrome_options.add_argument('--disable-background-timer-throttling')
@@ -279,33 +292,95 @@ class KKdayScraper:
             chrome_options.add_argument('--disable-renderer-backgrounding')
             chrome_options.add_argument('--disable-features=TranslateUI')
             chrome_options.add_argument('--disable-ipc-flooding-protection')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--disable-software-rasterizer')
+            chrome_options.add_argument('--disable-background-networking')
+            chrome_options.add_argument('--disable-default-apps')
+            chrome_options.add_argument('--disable-sync')
+            chrome_options.add_argument('--disable-translate')
+            chrome_options.add_argument('--hide-scrollbars')
+            chrome_options.add_argument('--metrics-recording-only')
+            chrome_options.add_argument('--mute-audio')
+            chrome_options.add_argument('--no-first-run')
+            chrome_options.add_argument('--safebrowsing-disable-auto-update')
+            chrome_options.add_argument('--disable-client-side-phishing-detection')
+            chrome_options.add_argument('--disable-component-update')
+            chrome_options.add_argument('--disable-domain-reliability')
             
-            # Try to create driver with unique user data directory
+            # Try different approaches to avoid user data directory conflicts
+            driver_created = False
+            
+            # Approach 1: Use unique user data directory
             try:
+                chrome_options.add_argument(f'--user-data-dir={temp_dir}')
                 driver = webdriver.Chrome(options=chrome_options)
-            except Exception as user_data_error:
-                logger.warning(f"Failed with user data directory: {user_data_error}")
-                logger.info("Retrying without user data directory...")
+                driver_created = True
+                logger.info("Successfully created driver with unique user data directory")
+            except Exception as e1:
+                logger.warning(f"Approach 1 failed: {e1}")
                 
-                # Remove user data directory option and try again
-                chrome_options = Options()
-                chrome_options.add_argument('--no-sandbox')
-                chrome_options.add_argument('--disable-dev-shm-usage')
-                chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-                chrome_options.add_experimental_option('useAutomationExtension', False)
-                chrome_options.add_argument('--disable-extensions')
-                chrome_options.add_argument('--disable-plugins')
-                chrome_options.add_argument('--disable-images')
-                chrome_options.add_argument('--window-size=1920,1080')
-                chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-                chrome_options.add_argument('--disable-background-timer-throttling')
-                chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-                chrome_options.add_argument('--disable-renderer-backgrounding')
-                chrome_options.add_argument('--disable-features=TranslateUI')
-                chrome_options.add_argument('--disable-ipc-flooding-protection')
-                
-                driver = webdriver.Chrome(options=chrome_options)
+                # Approach 2: Use incognito mode without user data directory
+                try:
+                    chrome_options = Options()
+                    chrome_options.add_argument('--no-sandbox')
+                    chrome_options.add_argument('--disable-dev-shm-usage')
+                    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+                    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                    chrome_options.add_experimental_option('useAutomationExtension', False)
+                    chrome_options.add_argument('--disable-extensions')
+                    chrome_options.add_argument('--disable-plugins')
+                    chrome_options.add_argument('--disable-images')
+                    chrome_options.add_argument('--window-size=1920,1080')
+                    chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+                    chrome_options.add_argument('--incognito')
+                    chrome_options.add_argument('--disable-background-timer-throttling')
+                    chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+                    chrome_options.add_argument('--disable-renderer-backgrounding')
+                    chrome_options.add_argument('--disable-features=TranslateUI')
+                    chrome_options.add_argument('--disable-ipc-flooding-protection')
+                    chrome_options.add_argument('--disable-gpu')
+                    chrome_options.add_argument('--disable-software-rasterizer')
+                    chrome_options.add_argument('--disable-background-networking')
+                    chrome_options.add_argument('--disable-default-apps')
+                    chrome_options.add_argument('--disable-sync')
+                    chrome_options.add_argument('--disable-translate')
+                    chrome_options.add_argument('--hide-scrollbars')
+                    chrome_options.add_argument('--metrics-recording-only')
+                    chrome_options.add_argument('--mute-audio')
+                    chrome_options.add_argument('--no-first-run')
+                    chrome_options.add_argument('--safebrowsing-disable-auto-update')
+                    chrome_options.add_argument('--disable-client-side-phishing-detection')
+                    chrome_options.add_argument('--disable-component-update')
+                    chrome_options.add_argument('--disable-domain-reliability')
+                    
+                    driver = webdriver.Chrome(options=chrome_options)
+                    driver_created = True
+                    logger.info("Successfully created driver with incognito mode")
+                except Exception as e2:
+                    logger.warning(f"Approach 2 failed: {e2}")
+                    
+                    # Approach 3: Minimal options without user data directory
+                    try:
+                        chrome_options = Options()
+                        chrome_options.add_argument('--no-sandbox')
+                        chrome_options.add_argument('--disable-dev-shm-usage')
+                        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+                        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                        chrome_options.add_experimental_option('useAutomationExtension', False)
+                        chrome_options.add_argument('--disable-extensions')
+                        chrome_options.add_argument('--disable-plugins')
+                        chrome_options.add_argument('--window-size=1920,1080')
+                        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+                        
+                        driver = webdriver.Chrome(options=chrome_options)
+                        driver_created = True
+                        logger.info("Successfully created driver with minimal options")
+                    except Exception as e3:
+                        logger.error(f"All approaches failed. Last error: {e3}")
+                        raise e3
+            
+            if not driver_created:
+                raise Exception("Failed to create Chrome driver with any approach")
             
             # Execute script to remove webdriver property
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
