@@ -1,22 +1,25 @@
 import { scrapeService } from '../services/scrapeService.js';
 import ScrapeData from '../models/ScrapeData.js';
-
+import { spawn } from 'child_process'  ;
 export const scrapeController = {
   // POST /api/scrape - Scrape both KKDay and KLook URLs
 
   async scrapeBothloop(req, res) {
-    try {
-      
-      const data = await ScrapeData.find().sort({ createdAt: -1 });
+    const python = spawn('python', ['crontab/python/index.py', 'https://www.kkday.com/th/product/158964?qs=JR+TOKYO+Wide+Pass', 'world']);
 
-      for (const item of data) {
-        console.log(item)
-      }
-      res.json({ success: true, count: data.length });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
+    let result = '';
+    python.stdout.on('data', (data) => {
+      result += data.toString();
+    });
 
+    python.stderr.on('data', (data) => {
+      console.error(`Error: ${data}`);
+    });
+
+    python.on('close', (code) => {
+      console.log(`Python exited with code ${code}`);
+      res.send(`Result from Python: ${result}`);
+    });
   },
 
   async scrapeBoth(req, res) {
