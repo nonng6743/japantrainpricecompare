@@ -3,6 +3,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
 import time
 
 # Configure Chrome options for headless mode
@@ -20,8 +21,15 @@ chrome_options.add_argument('--disable-images')  # Disable images for faster loa
 chrome_options.add_argument('--window-size=1920,1080')  # Set browser window size
 chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.107 Safari/537.36')
 
-# Initialize WebDriver with Chrome options
-driver = webdriver.Chrome(options=chrome_options)
+# Specify the path to the Chrome binary (Google Chrome for Testing)
+chrome_options.binary_location = "/usr/local/bin/chrome"
+
+# Specify the path to the Chromedriver binary
+chromedriver_path = "/usr/local/bin/chromedriver"
+
+# Initialize the WebDriver with Chrome options and Chromedriver path
+service = Service(executable_path=chromedriver_path)
+driver = webdriver.Chrome(service=service, options=chrome_options)
 
 try:
     # Navigate to the product page
