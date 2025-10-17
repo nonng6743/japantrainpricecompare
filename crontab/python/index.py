@@ -187,7 +187,8 @@ class KKdayScraper:
             
             # Extract title
             title_selectors = [
-                'h1', 'h2', '.product-title', '.title', '[data-testid="product-title"]'
+                'h1', 'h2', '.product-title', '.title', '[data-testid="product-title"]',
+                '.product-name', '.item-title', '.tour-title'
             ]
             for selector in title_selectors:
                 title_elem = soup.select_one(selector)
@@ -195,33 +196,67 @@ class KKdayScraper:
                     product_info['title'] = title_elem.get_text(strip=True)
                     break
             
-            # Extract price
+            # Extract price with comprehensive selectors
             price_selectors = [
-                '.price', '.product-price', '[data-testid="price"]', '.amount'
+                '.price', '.product-price', '[data-testid="price"]', '.amount',
+                '.cost', '.total', '.fare', '.fee', '.booking-price',
+                '.product-cost', '.item-price', '.tour-price', '.pass-price',
+                '[class*="price"]', '[class*="cost"]', '[class*="amount"]',
+                '[id*="price"]', '[id*="cost"]', '[id*="amount"]',
+                '.booking-bar .price', '.product-info .price', '.ticket-price'
             ]
+            
             for selector in price_selectors:
                 price_elem = soup.select_one(selector)
                 if price_elem:
-                    product_info['price'] = price_elem.get_text(strip=True)
-                    break
+                    price_text = price_elem.get_text(strip=True)
+                    if price_text and any(char.isdigit() for char in price_text):
+                        product_info['price'] = price_text
+                        logger.info(f"Found price with selector: {selector}")
+                        break
+            
+            # If no price found with selectors, search for currency symbols in text
+            if 'price' not in product_info:
+                import re
+                # Look for currency patterns in the entire page
+                currency_patterns = [
+                    r'[\$€£¥₹]\s*[\d,]+\.?\d*',  # Currency symbols
+                    r'[\d,]+\.?\d*\s*[\$€£¥₹]',  # Number + currency
+                    r'USD\s*[\d,]+\.?\d*',        # USD format
+                    r'TWD\s*[\d,]+\.?\d*',       # TWD format
+                    r'THB\s*[\d,]+\.?\d*',       # THB format
+                    r'JPY\s*[\d,]+\.?\d*',       # JPY format
+                ]
+                
+                page_text = soup.get_text()
+                for pattern in currency_patterns:
+                    matches = re.findall(pattern, page_text, re.IGNORECASE)
+                    if matches:
+                        product_info['price'] = matches[0]
+                        logger.info(f"Found price with regex pattern: {matches[0]}")
+                        break
             
             # Extract description
             desc_selectors = [
-                '.description', '.product-description', '.content', 'p'
+                '.description', '.product-description', '.content', 'p',
+                '.product-details', '.tour-description', '.item-description'
             ]
             for selector in desc_selectors:
                 desc_elem = soup.select_one(selector)
                 if desc_elem:
-                    product_info['description'] = desc_elem.get_text(strip=True)
-                    break
+                    desc_text = desc_elem.get_text(strip=True)
+                    if desc_text and len(desc_text) > 10:  # Only use substantial descriptions
+                        product_info['description'] = desc_text
+                        break
             
             # Extract images
             images = []
             img_elements = soup.find_all('img')
             for img in img_elements:
-                src = img.get('src') or img.get('data-src')
+                src = img.get('src') or img.get('data-src') or img.get('data-lazy-src')
                 if src:
-                    images.append(urljoin(self.base_url, src))
+                    full_url = urljoin(self.base_url, src)
+                    images.append(full_url)
             product_info['images'] = images
             
             return {
@@ -632,26 +667,61 @@ class KKdayScraper:
     def extract_with_selenium_fallback(self, driver):
         """Extract information using Selenium fallback methods"""
         try:
+            from selenium.common.exceptions import NoSuchElementException
+            
             # Get page title
             title = driver.title
             
             # Try to find common product elements
             product_info = {'title': title}
             
-            # Look for price elements
+            # Look for price elements with more comprehensive selectors
             price_selectors = [
                 "//*[contains(@class, 'price')]",
                 "//*[contains(@class, 'amount')]",
-                "//*[contains(text(), '$')]"
+                "//*[contains(@class, 'cost')]",
+                "//*[contains(@class, 'total')]",
+                "//*[contains(@class, 'fare')]",
+                "//*[contains(@class, 'fee')]",
+                "//*[contains(text(), '$')]",
+                "//*[contains(text(), '¥')]",
+                "//*[contains(text(), 'THB')]",
+                "//*[contains(text(), 'TWD')]",
+                "//*[contains(@data-testid, 'price')]",
+                "//*[contains(@id, 'price')]",
+                "//*[contains(@id, 'amount')]",
+                "//*[contains(@id, 'cost')]",
+                "//*[contains(@id, 'total')]",
+                "//*[contains(@id, 'fare')]",
+                "//*[contains(@id, 'fee')]",
+                "//*[contains(@class, 'booking')]//*[contains(@class, 'price')]",
+                "//*[contains(@class, 'product')]//*[contains(@class, 'price')]",
+                "//*[contains(@class, 'ticket')]//*[contains(@class, 'price')]",
+                "//*[contains(@class, 'pass')]//*[contains(@class, 'price')]"
             ]
             
             for selector in price_selectors:
                 try:
                     price_elem = driver.find_element(By.XPATH, selector)
                     product_info['price'] = price_elem.text
+                    logger.info(f"Found price with selector: {selector}")
                     break
                 except NoSuchElementException:
                     continue
+            
+            # If no price found, try to find any element containing numbers that might be prices
+            if 'price' not in product_info:
+                try:
+                    # Look for any element containing currency symbols or numbers
+                    currency_elements = driver.find_elements(By.XPATH, "//*[contains(text(), '$') or contains(text(), '¥') or contains(text(), 'THB') or contains(text(), 'TWD') or contains(text(), '€') or contains(text(), '£')]")
+                    for elem in currency_elements:
+                        text = elem.text.strip()
+                        if text and any(char.isdigit() for char in text):
+                            product_info['price'] = text
+                            logger.info(f"Found potential price: {text}")
+                            break
+                except Exception as e:
+                    logger.warning(f"Could not search for currency elements: {e}")
             
             # Get all text content
             body = driver.find_element(By.TAG_NAME, "body")
