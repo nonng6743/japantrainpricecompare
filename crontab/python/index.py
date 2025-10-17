@@ -1,20 +1,12 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
 
-# Specify the path to the Chrome binary (Google Chrome for Testing)
-chrome_binary_path = "/usr/local/bin/chrome"
-
-# Specify the path to Chromedriver
-chromedriver_path = "/usr/local/bin/chromedriver"
-
 # Configure Chrome options for headless mode
 chrome_options = Options()
-chrome_options.binary_location = chrome_binary_path  # Use the correct Chrome binary path
 chrome_options.add_argument('--headless')  # Headless mode
 chrome_options.add_argument('--disable-gpu')  # Disable GPU
 chrome_options.add_argument('--no-sandbox')  # Disable sandbox (useful in Docker or server)
@@ -28,9 +20,8 @@ chrome_options.add_argument('--disable-images')  # Disable images for faster loa
 chrome_options.add_argument('--window-size=1920,1080')  # Set browser window size
 chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.107 Safari/537.36')
 
-# Initialize WebDriver with the Chrome options and Chromedriver path
-service = Service(executable_path=chromedriver_path)
-driver = webdriver.Chrome(service=service, options=chrome_options)
+# Initialize WebDriver with Chrome options
+driver = webdriver.Chrome(options=chrome_options)
 
 try:
     # Navigate to the product page
