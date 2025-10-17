@@ -38,6 +38,10 @@ class KKdayScraper:
         
         self.session = requests.Session()
         self.session.headers.update(self.headers)
+        
+        # Create necessary directories for Ubuntu
+        if self.os_info.get('is_ubuntu'):
+            self._create_ubuntu_directories()
 
     def detect_os(self):
         """Detect operating system and return OS information"""
@@ -145,42 +149,132 @@ class KKdayScraper:
             logger.error(f"Error checking Chrome installation: {e}")
             return None
 
+    def _create_ubuntu_directories(self):
+        """Create necessary directories for Chrome on Ubuntu"""
+        try:
+            directories = [
+                '/tmp/chrome-user-data',
+                '/tmp/chrome-cache',
+                '/tmp/chrome-media-cache'
+            ]
+            
+            for directory in directories:
+                if not os.path.exists(directory):
+                    os.makedirs(directory, exist_ok=True)
+                    logger.info(f"Created directory: {directory}")
+                    
+            # Set permissions
+            for directory in directories:
+                os.chmod(directory, 0o755)
+                
+        except Exception as e:
+            logger.warning(f"Could not create Ubuntu directories: {e}")
+
     def scrape_with_requests(self):
-        """Scrape using requests and BeautifulSoup"""
+        """Scrape using requests and BeautifulSoup with enhanced 403 handling"""
         try:
             logger.info(f"Scraping URL: {self.target_url}")
-            response = self.session.get(self.target_url, timeout=30)
-            response.raise_for_status()
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            # Try multiple request strategies for 403 bypass
+            strategies = [
+                self._make_request_with_strategy_1,
+                self._make_request_with_strategy_2,
+                self._make_request_with_strategy_3
+            ]
             
-            # Try to find the element using the XPath structure
-            # Convert XPath to CSS selectors where possible
-            target_element = self.find_element_by_xpath_structure(soup)
-            
-            if target_element:
-                logger.info("Element found using XPath structure")
-                # Extract price information from the target element
-                price_info = self.extract_price_from_bs4_element(target_element)
-                
-                return {
-                    'success': True,
-                    'method': 'requests',
-                    'content': target_element.get_text(strip=True),
-                    'html': str(target_element),
-                    'price_info': price_info,
-                    'url': self.target_url
-                }
-            else:
-                # Fallback: extract general product information
-                return self.extract_product_info(soup)
+            for i, strategy in enumerate(strategies, 1):
+                try:
+                    logger.info(f"Trying requests strategy {i}/3")
+                    response = strategy()
+                    response.raise_for_status()
+                    
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    # Try to find the element using the XPath structure
+                    target_element = self.find_element_by_xpath_structure(soup)
+                    
+                    if target_element:
+                        logger.info(f"Element found using XPath structure with strategy {i}")
+                        price_info = self.extract_price_from_bs4_element(target_element)
+                        
+                        return {
+                            'success': True,
+                            'method': f'requests_strategy_{i}',
+                            'content': target_element.get_text(strip=True),
+                            'html': str(target_element),
+                            'price_info': price_info,
+                            'url': self.target_url
+                        }
+                    else:
+                        # Fallback: extract general product information
+                        result = self.extract_product_info(soup)
+                        if result.get('success'):
+                            result['method'] = f'requests_strategy_{i}_fallback'
+                            return result
+                        
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"Strategy {i} failed: {e}")
+                    if i == len(strategies):
+                        raise e
+                    continue
+                except Exception as e:
+                    logger.warning(f"Strategy {i} unexpected error: {e}")
+                    if i == len(strategies):
+                        raise e
+                    continue
                 
         except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed: {e}")
+            logger.error(f"All request strategies failed: {e}")
             return {'success': False, 'error': str(e), 'method': 'requests'}
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return {'success': False, 'error': str(e), 'method': 'requests'}
+
+    def _make_request_with_strategy_1(self):
+        """Strategy 1: Standard headers with session"""
+        return self.session.get(self.target_url, timeout=30)
+
+    def _make_request_with_strategy_2(self):
+        """Strategy 2: Enhanced headers to bypass 403"""
+        enhanced_headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9,th;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+            'DNT': '1',
+            'Referer': 'https://www.google.com/',
+        }
+        
+        session = requests.Session()
+        session.headers.update(enhanced_headers)
+        return session.get(self.target_url, timeout=30)
+
+    def _make_request_with_strategy_3(self):
+        """Strategy 3: Mobile headers to bypass detection"""
+        mobile_headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+        }
+        
+        session = requests.Session()
+        session.headers.update(mobile_headers)
+        return session.get(self.target_url, timeout=30)
 
     def find_element_by_xpath_structure(self, soup):
         """Find element by approximating the XPath structure"""
@@ -367,7 +461,7 @@ class KKdayScraper:
             if self.os_info.get('is_ubuntu'):
                 logger.info("Configuring Chrome for Ubuntu 24.04.3 LTS")
                 # Essential arguments for Ubuntu server environments
-                chrome_options.add_argument('--headless')  # Headless for server environments
+                chrome_options.add_argument('--headless=new')  # Use new headless mode
                 chrome_options.add_argument('--no-sandbox')
                 chrome_options.add_argument('--disable-dev-shm-usage')
                 chrome_options.add_argument('--disable-gpu')
@@ -377,7 +471,7 @@ class KKdayScraper:
                 chrome_options.add_argument('--disable-renderer-backgrounding')
                 chrome_options.add_argument('--disable-features=TranslateUI')
                 chrome_options.add_argument('--disable-ipc-flooding-protection')
-                chrome_options.add_argument('--remote-debugging-port=9222')
+                chrome_options.add_argument('--remote-debugging-port=0')  # Use random port
                 chrome_options.add_argument('--disable-web-security')
                 chrome_options.add_argument('--disable-features=VizDisplayCompositor')
                 chrome_options.add_argument('--run-all-compositor-stages-before-draw')
@@ -412,6 +506,25 @@ class KKdayScraper:
                 chrome_options.add_argument('--disable-images')  # Faster loading
                 chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
                 
+                # Additional Ubuntu-specific fixes
+                chrome_options.add_argument('--disable-setuid-sandbox')
+                chrome_options.add_argument('--disable-zygote')
+                chrome_options.add_argument('--disable-background-networking')
+                chrome_options.add_argument('--disable-default-apps')
+                chrome_options.add_argument('--disable-sync')
+                chrome_options.add_argument('--disable-translate')
+                chrome_options.add_argument('--hide-scrollbars')
+                chrome_options.add_argument('--metrics-recording-only')
+                chrome_options.add_argument('--mute-audio')
+                chrome_options.add_argument('--no-first-run')
+                chrome_options.add_argument('--safebrowsing-disable-auto-update')
+                chrome_options.add_argument('--disable-client-side-phishing-detection')
+                chrome_options.add_argument('--disable-component-update')
+                chrome_options.add_argument('--disable-domain-reliability')
+                chrome_options.add_argument('--disable-features=AudioServiceOutOfProcess')
+                chrome_options.add_argument('--disable-hang-monitor')
+                chrome_options.add_argument('--disable-prompt-on-repost')
+                
                 # Set Chrome binary path if found
                 if chrome_path:
                     chrome_options.binary_location = chrome_path
@@ -429,14 +542,48 @@ class KKdayScraper:
                 chrome_options.add_argument('--window-size=1920,1080')
                 chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
             
-            # Create driver with or without service
-            if chrome_path and self.os_info.get('is_ubuntu'):
-                # Use specific Chrome path for Ubuntu
-                service = Service(executable_path=chrome_path)
-                driver = webdriver.Chrome(service=service, options=chrome_options)
+            # Create driver with improved error handling
+            driver = None
+            chrome_attempts = []
+            
+            if self.os_info.get('is_ubuntu'):
+                # Try multiple Chrome/Chromium paths for Ubuntu
+                chrome_attempts = [
+                    '/usr/bin/google-chrome',
+                    '/usr/bin/google-chrome-stable', 
+                    '/usr/bin/chromium-browser',
+                    '/usr/bin/chromium',
+                    '/snap/bin/chromium'
+                ]
             else:
-                # Use default Chrome driver
-                driver = webdriver.Chrome(options=chrome_options)
+                # Use detected path or default
+                if chrome_path:
+                    chrome_attempts = [chrome_path]
+                else:
+                    chrome_attempts = [None]  # Use system default
+            
+            # Try each Chrome path until one works
+            for chrome_binary in chrome_attempts:
+                try:
+                    if chrome_binary and os.path.exists(chrome_binary):
+                        logger.info(f"Trying Chrome binary: {chrome_binary}")
+                        chrome_options.binary_location = chrome_binary
+                        service = Service(executable_path=chrome_binary)
+                        driver = webdriver.Chrome(service=service, options=chrome_options)
+                        logger.info(f"✅ Successfully started Chrome with: {chrome_binary}")
+                        break
+                    elif chrome_binary is None:
+                        # Try system default
+                        logger.info("Trying system default Chrome")
+                        driver = webdriver.Chrome(options=chrome_options)
+                        logger.info("✅ Successfully started Chrome with system default")
+                        break
+                except Exception as e:
+                    logger.warning(f"Failed to start Chrome with {chrome_binary}: {e}")
+                    continue
+            
+            if driver is None:
+                raise Exception("Could not start Chrome with any available binary")
             
             # Execute script to remove webdriver property
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -641,9 +788,13 @@ def main():
         print(f"  {i}. {xpath}")
     print("-" * 50)
     
-    # Try Selenium first (visible browser) to bypass 403 errors
+    # Try Selenium first to bypass 403 errors
     print("🌐 Opening browser and attempting scraping with Selenium...")
-    print("📝 Browser will close automatically after price extraction")
+    if scraper.os_info.get('is_ubuntu'):
+        print("📝 Running in headless mode for Ubuntu server environment")
+    else:
+        print("📝 Browser will close automatically after price extraction")
+    
     results = scraper.scrape_with_selenium()
     
     if results['success']:
@@ -652,15 +803,16 @@ def main():
     else:
         print(f"❌ Selenium scraping failed: {results.get('error', 'Unknown error')}")
         
-        # Try requests as fallback
-        print("\n📡 Attempting scraping with requests as fallback...")
+        # Try requests as fallback with multiple strategies
+        print("\n📡 Attempting scraping with requests fallback (3 strategies)...")
         requests_results = scraper.scrape_with_requests()
         
         if requests_results['success']:
             print("✅ Requests scraping successful!")
+            print(f"Used strategy: {requests_results.get('method', 'unknown')}")
             results = requests_results
         else:
-            print(f"❌ Requests scraping failed: {requests_results.get('error', 'Unknown error')}")
+            print(f"❌ All requests strategies failed: {requests_results.get('error', 'Unknown error')}")
     
     # Save results
     scraper.save_results(results)
