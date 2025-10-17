@@ -242,7 +242,17 @@ class KKdayScraper:
             }
 
     def scrape_with_selenium(self):
-        """Scrape using Selenium for JavaScript-heavy content"""
+        """Scrape using Selenium for JavaScript-heavy content with Ubuntu server support"""
+        import tempfile
+        import shutil
+        import os
+        import subprocess
+        import time
+        import glob
+        
+        temp_dir = None
+        driver = None
+        
         try:
             from selenium import webdriver
             from selenium.webdriver.common.by import By
@@ -251,22 +261,73 @@ class KKdayScraper:
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
             
-            # Setup Chrome options for visible browser (not headless)
-            chrome_options = Options()
-            # Remove headless mode to show browser
-            # chrome_options.add_argument('--headless')  # Commented out to show browser
-            chrome_options.add_argument('--no-sandbox')
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
-            chrome_options.add_argument('--disable-extensions')
-            chrome_options.add_argument('--disable-plugins')
-            chrome_options.add_argument('--disable-images')  # Faster loading
-            chrome_options.add_argument('--window-size=1920,1080')
-            chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+            # Aggressive cleanup for Ubuntu server
+            logger.info("Performing aggressive Chrome cleanup for Ubuntu server...")
             
-            driver = webdriver.Chrome(options=chrome_options)
+            # Kill all Chrome processes
+            try:
+                subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+                subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
+                subprocess.run(['killall', 'chrome'], capture_output=True)
+                subprocess.run(['killall', 'chromedriver'], capture_output=True)
+                time.sleep(3)
+            except:
+                pass
+            
+            # Clean up Chrome directories and files
+            cleanup_patterns = [
+                '/tmp/chrome_user_data_*',
+                '/tmp/.com.google.Chrome*',
+                '/tmp/.X11-unix',
+                '/tmp/.ICE-unix',
+                '/tmp/.X0-lock',
+                '/tmp/.X11-unix/X*'
+            ]
+            
+            for pattern in cleanup_patterns:
+                for path in glob.glob(pattern):
+                    try:
+                        if os.path.isdir(path):
+                            shutil.rmtree(path)
+                        else:
+                            os.remove(path)
+                    except:
+                        pass
+            
+            # Create unique temporary directory
+            temp_dir = tempfile.mkdtemp(prefix='chrome_ubuntu_')
+            
+            # Try multiple Chrome configurations for Ubuntu server
+            chrome_configs = [
+                self._get_chrome_config_1(temp_dir),
+                self._get_chrome_config_2(),
+                self._get_chrome_config_3(),
+                self._get_chrome_config_4()
+            ]
+            
+            driver_created = False
+            last_error = None
+            
+            for i, config in enumerate(chrome_configs, 1):
+                try:
+                    logger.info(f"Trying Chrome configuration {i} for Ubuntu server...")
+                    driver = webdriver.Chrome(options=config)
+                    driver_created = True
+                    logger.info(f"✅ Successfully created Chrome driver with configuration {i}")
+                    break
+                except Exception as e:
+                    last_error = e
+                    logger.warning(f"❌ Configuration {i} failed: {e}")
+                    if driver:
+                        try:
+                            driver.quit()
+                        except:
+                            pass
+                        driver = None
+                    continue
+            
+            if not driver_created:
+                raise Exception(f"All Chrome configurations failed. Last error: {last_error}")
             
             # Execute script to remove webdriver property
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -338,6 +399,93 @@ class KKdayScraper:
         except Exception as e:
             logger.error(f"Selenium scraping failed: {e}")
             return {'success': False, 'error': str(e), 'method': 'selenium'}
+    
+    def _get_chrome_config_1(self, temp_dir):
+        """Chrome configuration 1: Headless with unique user data directory"""
+        from selenium.webdriver.chrome.options import Options
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-software-rasterizer')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-plugins')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+        chrome_options.add_argument(f'--user-data-dir={temp_dir}')
+        chrome_options.add_argument('--disable-background-timer-throttling')
+        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+        chrome_options.add_argument('--disable-renderer-backgrounding')
+        chrome_options.add_argument('--disable-features=TranslateUI')
+        chrome_options.add_argument('--disable-ipc-flooding-protection')
+        chrome_options.add_argument('--disable-background-networking')
+        chrome_options.add_argument('--disable-default-apps')
+        chrome_options.add_argument('--disable-sync')
+        chrome_options.add_argument('--disable-translate')
+        chrome_options.add_argument('--hide-scrollbars')
+        chrome_options.add_argument('--metrics-recording-only')
+        chrome_options.add_argument('--mute-audio')
+        chrome_options.add_argument('--no-first-run')
+        chrome_options.add_argument('--safebrowsing-disable-auto-update')
+        chrome_options.add_argument('--disable-client-side-phishing-detection')
+        chrome_options.add_argument('--disable-component-update')
+        chrome_options.add_argument('--disable-domain-reliability')
+        return chrome_options
+    
+    def _get_chrome_config_2(self):
+        """Chrome configuration 2: Headless without user data directory"""
+        from selenium.webdriver.chrome.options import Options
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-software-rasterizer')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-plugins')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+        chrome_options.add_argument('--incognito')
+        chrome_options.add_argument('--disable-background-timer-throttling')
+        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+        chrome_options.add_argument('--disable-renderer-backgrounding')
+        chrome_options.add_argument('--disable-features=TranslateUI')
+        chrome_options.add_argument('--disable-ipc-flooding-protection')
+        return chrome_options
+    
+    def _get_chrome_config_3(self):
+        """Chrome configuration 3: Minimal headless configuration"""
+        from selenium.webdriver.chrome.options import Options
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+        return chrome_options
+    
+    def _get_chrome_config_4(self):
+        """Chrome configuration 4: Ultra-minimal configuration"""
+        from selenium.webdriver.chrome.options import Options
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+        return chrome_options
 
     def extract_with_selenium_fallback(self, driver):
         """Extract information using Selenium fallback methods"""
