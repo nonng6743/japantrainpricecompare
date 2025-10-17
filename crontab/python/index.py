@@ -41,128 +41,41 @@ class KKdayScraper:
         self.session.headers.update(self.headers)
 
     def scrape_with_requests(self):
-        """Scrape using requests and BeautifulSoup with enhanced 403 handling"""
+        """Scrape using requests and BeautifulSoup"""
         try:
             logger.info(f"Scraping URL: {self.target_url}")
+            response = self.session.get(self.target_url, timeout=30)
+            response.raise_for_status()
             
-            # Try multiple request strategies to handle 403 errors
-            strategies = [
-                self._request_strategy_1,
-                self._request_strategy_2,
-                self._request_strategy_3,
-                self._request_strategy_4
-            ]
+            soup = BeautifulSoup(response.content, 'html.parser')
             
-            for i, strategy in enumerate(strategies, 1):
-                try:
-                    logger.info(f"Trying request strategy {i}")
-                    result = strategy()
-                    if result['success']:
-                        logger.info(f"✅ Request strategy {i} successful")
-                        return result
-                    else:
-                        logger.warning(f"❌ Request strategy {i} failed: {result.get('error', 'Unknown error')}")
-                except Exception as e:
-                    logger.warning(f"❌ Request strategy {i} failed with exception: {e}")
-                    continue
+            # Try to find the element using the XPath structure
+            # Convert XPath to CSS selectors where possible
+            target_element = self.find_element_by_xpath_structure(soup)
             
-            # If all strategies fail, return the last error
-            return {'success': False, 'error': 'All request strategies failed', 'method': 'requests'}
+            if target_element:
+                logger.info("Element found using XPath structure")
+                # Extract price information from the target element
+                price_info = self.extract_price_from_bs4_element(target_element)
                 
-        except Exception as e:
-            logger.error(f"Unexpected error in requests scraping: {e}")
+                return {
+                    'success': True,
+                    'method': 'requests',
+                    'content': target_element.get_text(strip=True),
+                    'html': str(target_element),
+                    'price_info': price_info,
+                    'url': self.target_url
+                }
+            else:
+                # Fallback: extract general product information
+                return self.extract_product_info(soup)
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed: {e}")
             return {'success': False, 'error': str(e), 'method': 'requests'}
-    
-    def _request_strategy_1(self):
-        """Strategy 1: Basic requests with session"""
-        response = self.session.get(self.target_url, timeout=30)
-        response.raise_for_status()
-        return self._process_response(response)
-    
-    def _request_strategy_2(self):
-        """Strategy 2: Requests with different headers"""
-        import requests
-        
-        # Create new session with different headers
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Cache-Control': 'max-age=0'
-        })
-        
-        response = session.get(self.target_url, timeout=30)
-        response.raise_for_status()
-        return self._process_response(response)
-    
-    def _request_strategy_3(self):
-        """Strategy 3: Requests with Safari user agent"""
-        import requests
-        
-        # Create new session with Safari user agent
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
-        })
-        
-        response = session.get(self.target_url, timeout=30)
-        response.raise_for_status()
-        return self._process_response(response)
-    
-    def _request_strategy_4(self):
-        """Strategy 4: Requests with mobile user agent"""
-        import requests
-        
-        # Create new session with mobile user agent
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
-        })
-        
-        response = session.get(self.target_url, timeout=30)
-        response.raise_for_status()
-        return self._process_response(response)
-    
-    def _process_response(self, response):
-        """Process the response and extract data"""
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Try to find the element using the XPath structure
-        target_element = self.find_element_by_xpath_structure(soup)
-        
-        if target_element:
-            logger.info("Element found using XPath structure")
-            # Extract price information from the target element
-            price_info = self.extract_price_from_bs4_element(target_element)
-            
-            return {
-                'success': True,
-                'method': 'requests',
-                'content': target_element.get_text(strip=True),
-                'html': str(target_element),
-                'price_info': price_info,
-                'url': self.target_url
-            }
-        else:
-            # Fallback: extract general product information
-            return self.extract_product_info(soup)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return {'success': False, 'error': str(e), 'method': 'requests'}
 
     def find_element_by_xpath_structure(self, soup):
         """Find element by approximating the XPath structure"""
@@ -329,17 +242,7 @@ class KKdayScraper:
             }
 
     def scrape_with_selenium(self):
-        """Scrape using Selenium for JavaScript-heavy content with Ubuntu server support"""
-        import tempfile
-        import shutil
-        import os
-        import subprocess
-        import time
-        import glob
-        
-        temp_dir = None
-        driver = None
-        
+        """Scrape using Selenium for JavaScript-heavy content"""
         try:
             from selenium import webdriver
             from selenium.webdriver.common.by import By
@@ -348,73 +251,22 @@ class KKdayScraper:
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
             
-            # Aggressive cleanup for Ubuntu server
-            logger.info("Performing aggressive Chrome cleanup for Ubuntu server...")
+            # Setup Chrome options for visible browser (not headless)
+            chrome_options = Options()
+            # Remove headless mode to show browser
+            # chrome_options.add_argument('--headless')  # Commented out to show browser
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
+            chrome_options.add_argument('--disable-extensions')
+            chrome_options.add_argument('--disable-plugins')
+            chrome_options.add_argument('--disable-images')  # Faster loading
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
             
-            # Kill all Chrome processes
-            try:
-                subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
-                subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
-                subprocess.run(['killall', 'chrome'], capture_output=True)
-                subprocess.run(['killall', 'chromedriver'], capture_output=True)
-                time.sleep(3)
-            except:
-                pass
-            
-            # Clean up Chrome directories and files
-            cleanup_patterns = [
-                '/tmp/chrome_user_data_*',
-                '/tmp/.com.google.Chrome*',
-                '/tmp/.X11-unix',
-                '/tmp/.ICE-unix',
-                '/tmp/.X0-lock',
-                '/tmp/.X11-unix/X*'
-            ]
-            
-            for pattern in cleanup_patterns:
-                for path in glob.glob(pattern):
-                    try:
-                        if os.path.isdir(path):
-                            shutil.rmtree(path)
-                        else:
-                            os.remove(path)
-                    except:
-                        pass
-            
-            # Create unique temporary directory
-            temp_dir = tempfile.mkdtemp(prefix='chrome_ubuntu_')
-            
-            # Try multiple Chrome configurations for Ubuntu server
-            chrome_configs = [
-                self._get_chrome_config_1(temp_dir),
-                self._get_chrome_config_2(),
-                self._get_chrome_config_3(),
-                self._get_chrome_config_4()
-            ]
-            
-            driver_created = False
-            last_error = None
-            
-            for i, config in enumerate(chrome_configs, 1):
-                try:
-                    logger.info(f"Trying Chrome configuration {i} for Ubuntu server...")
-                    driver = webdriver.Chrome(options=config)
-                    driver_created = True
-                    logger.info(f"✅ Successfully created Chrome driver with configuration {i}")
-                    break
-                except Exception as e:
-                    last_error = e
-                    logger.warning(f"❌ Configuration {i} failed: {e}")
-                    if driver:
-                        try:
-                            driver.quit()
-                        except:
-                            pass
-                        driver = None
-                    continue
-            
-            if not driver_created:
-                raise Exception(f"All Chrome configurations failed. Last error: {last_error}")
+            driver = webdriver.Chrome(options=chrome_options)
             
             # Execute script to remove webdriver property
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -486,152 +338,30 @@ class KKdayScraper:
         except Exception as e:
             logger.error(f"Selenium scraping failed: {e}")
             return {'success': False, 'error': str(e), 'method': 'selenium'}
-    
-    def _get_chrome_config_1(self, temp_dir):
-        """Chrome configuration 1: Headless with unique user data directory"""
-        from selenium.webdriver.chrome.options import Options
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-software-rasterizer')
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        chrome_options.add_argument('--disable-extensions')
-        chrome_options.add_argument('--disable-plugins')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-        chrome_options.add_argument(f'--user-data-dir={temp_dir}')
-        chrome_options.add_argument('--disable-background-timer-throttling')
-        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-        chrome_options.add_argument('--disable-renderer-backgrounding')
-        chrome_options.add_argument('--disable-features=TranslateUI')
-        chrome_options.add_argument('--disable-ipc-flooding-protection')
-        chrome_options.add_argument('--disable-background-networking')
-        chrome_options.add_argument('--disable-default-apps')
-        chrome_options.add_argument('--disable-sync')
-        chrome_options.add_argument('--disable-translate')
-        chrome_options.add_argument('--hide-scrollbars')
-        chrome_options.add_argument('--metrics-recording-only')
-        chrome_options.add_argument('--mute-audio')
-        chrome_options.add_argument('--no-first-run')
-        chrome_options.add_argument('--safebrowsing-disable-auto-update')
-        chrome_options.add_argument('--disable-client-side-phishing-detection')
-        chrome_options.add_argument('--disable-component-update')
-        chrome_options.add_argument('--disable-domain-reliability')
-        return chrome_options
-    
-    def _get_chrome_config_2(self):
-        """Chrome configuration 2: Headless without user data directory"""
-        from selenium.webdriver.chrome.options import Options
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-software-rasterizer')
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        chrome_options.add_argument('--disable-extensions')
-        chrome_options.add_argument('--disable-plugins')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-        chrome_options.add_argument('--incognito')
-        chrome_options.add_argument('--disable-background-timer-throttling')
-        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-        chrome_options.add_argument('--disable-renderer-backgrounding')
-        chrome_options.add_argument('--disable-features=TranslateUI')
-        chrome_options.add_argument('--disable-ipc-flooding-protection')
-        return chrome_options
-    
-    def _get_chrome_config_3(self):
-        """Chrome configuration 3: Minimal headless configuration"""
-        from selenium.webdriver.chrome.options import Options
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-        return chrome_options
-    
-    def _get_chrome_config_4(self):
-        """Chrome configuration 4: Ultra-minimal configuration"""
-        from selenium.webdriver.chrome.options import Options
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-        return chrome_options
 
     def extract_with_selenium_fallback(self, driver):
         """Extract information using Selenium fallback methods"""
         try:
-            from selenium.common.exceptions import NoSuchElementException
-            
             # Get page title
             title = driver.title
             
             # Try to find common product elements
             product_info = {'title': title}
             
-            # Look for price elements with comprehensive selectors
+            # Look for price elements
             price_selectors = [
                 "//*[contains(@class, 'price')]",
                 "//*[contains(@class, 'amount')]",
-                "//*[contains(@class, 'cost')]",
-                "//*[contains(@class, 'total')]",
-                "//*[contains(@class, 'fare')]",
-                "//*[contains(@class, 'fee')]",
-                "//*[contains(text(), '$')]",
-                "//*[contains(text(), '¥')]",
-                "//*[contains(text(), 'THB')]",
-                "//*[contains(text(), 'TWD')]",
-                "//*[contains(@data-testid, 'price')]",
-                "//*[contains(@id, 'price')]",
-                "//*[contains(@id, 'amount')]",
-                "//*[contains(@id, 'cost')]",
-                "//*[contains(@id, 'total')]",
-                "//*[contains(@id, 'fare')]",
-                "//*[contains(@id, 'fee')]",
-                "//*[contains(@class, 'booking')]//*[contains(@class, 'price')]",
-                "//*[contains(@class, 'product')]//*[contains(@class, 'price')]",
-                "//*[contains(@class, 'ticket')]//*[contains(@class, 'price')]",
-                "//*[contains(@class, 'pass')]//*[contains(@class, 'price')]"
+                "//*[contains(text(), '$')]"
             ]
             
             for selector in price_selectors:
                 try:
                     price_elem = driver.find_element(By.XPATH, selector)
                     product_info['price'] = price_elem.text
-                    logger.info(f"Found price with selector: {selector}")
                     break
                 except NoSuchElementException:
                     continue
-            
-            # If no price found, try to find any element containing numbers that might be prices
-            if 'price' not in product_info:
-                try:
-                    # Look for any element containing currency symbols or numbers
-                    currency_elements = driver.find_elements(By.XPATH, "//*[contains(text(), '$') or contains(text(), '¥') or contains(text(), 'THB') or contains(text(), 'TWD') or contains(text(), '€') or contains(text(), '£')]")
-                    for elem in currency_elements:
-                        text = elem.text.strip()
-                        if text and any(char.isdigit() for char in text):
-                            product_info['price'] = text
-                            logger.info(f"Found potential price: {text}")
-                            break
-                except Exception as e:
-                    logger.warning(f"Could not search for currency elements: {e}")
             
             # Get all text content
             body = driver.find_element(By.TAG_NAME, "body")
