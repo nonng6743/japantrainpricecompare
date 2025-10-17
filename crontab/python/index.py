@@ -237,6 +237,13 @@ class KKdayScraper:
 
     def scrape_with_selenium(self):
         """Scrape using Selenium for JavaScript-heavy content"""
+        import tempfile
+        import shutil
+        import os
+        
+        temp_dir = None
+        driver = None
+        
         try:
             from selenium import webdriver
             from selenium.webdriver.common.by import By
@@ -244,6 +251,9 @@ class KKdayScraper:
             from selenium.webdriver.support.ui import WebDriverWait
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
+            
+            # Create a unique temporary directory for user data
+            temp_dir = tempfile.mkdtemp(prefix='chrome_user_data_')
             
             # Setup Chrome options for visible browser (not headless)
             chrome_options = Options()
@@ -260,7 +270,42 @@ class KKdayScraper:
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
             
-            driver = webdriver.Chrome(options=chrome_options)
+            # Use unique user data directory to avoid conflicts
+            chrome_options.add_argument(f'--user-data-dir={temp_dir}')
+            
+            # Additional options to prevent conflicts
+            chrome_options.add_argument('--disable-background-timer-throttling')
+            chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+            chrome_options.add_argument('--disable-renderer-backgrounding')
+            chrome_options.add_argument('--disable-features=TranslateUI')
+            chrome_options.add_argument('--disable-ipc-flooding-protection')
+            
+            # Try to create driver with unique user data directory
+            try:
+                driver = webdriver.Chrome(options=chrome_options)
+            except Exception as user_data_error:
+                logger.warning(f"Failed with user data directory: {user_data_error}")
+                logger.info("Retrying without user data directory...")
+                
+                # Remove user data directory option and try again
+                chrome_options = Options()
+                chrome_options.add_argument('--no-sandbox')
+                chrome_options.add_argument('--disable-dev-shm-usage')
+                chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+                chrome_options.add_experimental_option('useAutomationExtension', False)
+                chrome_options.add_argument('--disable-extensions')
+                chrome_options.add_argument('--disable-plugins')
+                chrome_options.add_argument('--disable-images')
+                chrome_options.add_argument('--window-size=1920,1080')
+                chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+                chrome_options.add_argument('--disable-background-timer-throttling')
+                chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+                chrome_options.add_argument('--disable-renderer-backgrounding')
+                chrome_options.add_argument('--disable-features=TranslateUI')
+                chrome_options.add_argument('--disable-ipc-flooding-protection')
+                
+                driver = webdriver.Chrome(options=chrome_options)
             
             # Execute script to remove webdriver property
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -323,14 +368,34 @@ class KKdayScraper:
                     
             finally:
                 # Close browser automatically after extraction
-                driver.quit()
-                print("\n🌐 Browser closed automatically after price extraction")
+                if driver:
+                    driver.quit()
+                    print("\n🌐 Browser closed automatically after price extraction")
+                
+                # Clean up temporary directory
+                if temp_dir and os.path.exists(temp_dir):
+                    try:
+                        shutil.rmtree(temp_dir)
+                        logger.info(f"Cleaned up temporary directory: {temp_dir}")
+                    except Exception as cleanup_error:
+                        logger.warning(f"Failed to clean up temporary directory {temp_dir}: {cleanup_error}")
                 
         except ImportError:
             logger.warning("Selenium not available. Install with: pip install selenium")
             return {'success': False, 'error': 'Selenium not installed', 'method': 'selenium'}
         except Exception as e:
             logger.error(f"Selenium scraping failed: {e}")
+            # Ensure cleanup even on error
+            if driver:
+                try:
+                    driver.quit()
+                except:
+                    pass
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir)
+                except:
+                    pass
             return {'success': False, 'error': str(e), 'method': 'selenium'}
 
     def extract_with_selenium_fallback(self, driver):
