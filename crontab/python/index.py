@@ -6,11 +6,13 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 import os
 import shutil
+import tempfile
+
+# Create a unique temporary directory for Chrome user data
+temp_user_data_dir = tempfile.mkdtemp()
 
 # Configure Chrome options for normal browser mode (like a regular user)
 chrome_options = Options()
-# Remove headless mode to show browser window
-# chrome_options.add_argument('--headless')  # Commented out to show browser
 chrome_options.add_argument('--start-maximized')  # Start with maximized window
 chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # Avoid automation detection
 chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])  # Disable automation flags
@@ -26,7 +28,9 @@ chrome_options.add_argument('--disable-features=VizDisplayCompositor')  # Disabl
 chrome_options.add_argument('--no-sandbox')  # Disable sandbox for server environments
 chrome_options.add_argument('--disable-dev-shm-usage')  # Fix /dev/shm usage limit
 chrome_options.add_argument('--disable-gpu')  # Disable GPU acceleration
-chrome_options.add_argument('--user-data-dir=/tmp/chrome-user-data')  # Use temporary user data directory
+
+# Specify the path to use a unique temporary user data directory
+chrome_options.add_argument(f'--user-data-dir={temp_user_data_dir}')  # Use unique temporary user data directory
 chrome_options.add_argument('--remote-debugging-port=9222')  # Enable remote debugging
 
 # Initialize WebDriver with Chrome options
@@ -66,10 +70,9 @@ finally:
     driver.quit()
     
     # Clean up temporary user data directory
-    temp_dir = '/tmp/chrome-user-data'
-    if os.path.exists(temp_dir):
+    if os.path.exists(temp_user_data_dir):
         try:
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(temp_user_data_dir)
             print("Cleaned up temporary Chrome user data directory")
         except Exception as e:
             print(f"Warning: Could not clean up temporary directory: {e}")
