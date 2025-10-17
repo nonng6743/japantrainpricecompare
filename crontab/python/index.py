@@ -11,6 +11,7 @@ import time
 import json
 from urllib.parse import urljoin, urlparse
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -41,41 +42,128 @@ class KKdayScraper:
         self.session.headers.update(self.headers)
 
     def scrape_with_requests(self):
-        """Scrape using requests and BeautifulSoup"""
+        """Scrape using requests and BeautifulSoup with enhanced 403 handling"""
         try:
             logger.info(f"Scraping URL: {self.target_url}")
-            response = self.session.get(self.target_url, timeout=30)
-            response.raise_for_status()
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            # Try multiple request strategies to handle 403 errors
+            strategies = [
+                self._request_strategy_1,
+                self._request_strategy_2,
+                self._request_strategy_3,
+                self._request_strategy_4
+            ]
             
-            # Try to find the element using the XPath structure
-            # Convert XPath to CSS selectors where possible
-            target_element = self.find_element_by_xpath_structure(soup)
+            for i, strategy in enumerate(strategies, 1):
+                try:
+                    logger.info(f"Trying request strategy {i}")
+                    result = strategy()
+                    if result['success']:
+                        logger.info(f"✅ Request strategy {i} successful")
+                        return result
+                    else:
+                        logger.warning(f"❌ Request strategy {i} failed: {result.get('error', 'Unknown error')}")
+                except Exception as e:
+                    logger.warning(f"❌ Request strategy {i} failed with exception: {e}")
+                    continue
             
-            if target_element:
-                logger.info("Element found using XPath structure")
-                # Extract price information from the target element
-                price_info = self.extract_price_from_bs4_element(target_element)
+            # If all strategies fail, return the last error
+            return {'success': False, 'error': 'All request strategies failed', 'method': 'requests'}
                 
-                return {
-                    'success': True,
-                    'method': 'requests',
-                    'content': target_element.get_text(strip=True),
-                    'html': str(target_element),
-                    'price_info': price_info,
-                    'url': self.target_url
-                }
-            else:
-                # Fallback: extract general product information
-                return self.extract_product_info(soup)
-                
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed: {e}")
-            return {'success': False, 'error': str(e), 'method': 'requests'}
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error in requests scraping: {e}")
             return {'success': False, 'error': str(e), 'method': 'requests'}
+    
+    def _request_strategy_1(self):
+        """Strategy 1: Basic requests with session"""
+        response = self.session.get(self.target_url, timeout=30)
+        response.raise_for_status()
+        return self._process_response(response)
+    
+    def _request_strategy_2(self):
+        """Strategy 2: Requests with different headers"""
+        import requests
+        
+        # Create new session with different headers
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0'
+        })
+        
+        response = session.get(self.target_url, timeout=30)
+        response.raise_for_status()
+        return self._process_response(response)
+    
+    def _request_strategy_3(self):
+        """Strategy 3: Requests with Safari user agent"""
+        import requests
+        
+        # Create new session with Safari user agent
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        })
+        
+        response = session.get(self.target_url, timeout=30)
+        response.raise_for_status()
+        return self._process_response(response)
+    
+    def _request_strategy_4(self):
+        """Strategy 4: Requests with mobile user agent"""
+        import requests
+        
+        # Create new session with mobile user agent
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        })
+        
+        response = session.get(self.target_url, timeout=30)
+        response.raise_for_status()
+        return self._process_response(response)
+    
+    def _process_response(self, response):
+        """Process the response and extract data"""
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Try to find the element using the XPath structure
+        target_element = self.find_element_by_xpath_structure(soup)
+        
+        if target_element:
+            logger.info("Element found using XPath structure")
+            # Extract price information from the target element
+            price_info = self.extract_price_from_bs4_element(target_element)
+            
+            return {
+                'success': True,
+                'method': 'requests',
+                'content': target_element.get_text(strip=True),
+                'html': str(target_element),
+                'price_info': price_info,
+                'url': self.target_url
+            }
+        else:
+            # Fallback: extract general product information
+            return self.extract_product_info(soup)
 
     def find_element_by_xpath_structure(self, soup):
         """Find element by approximating the XPath structure"""
@@ -250,13 +338,34 @@ class KKdayScraper:
             from selenium.webdriver.support.ui import WebDriverWait
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
+            import shutil
             
-            # Setup Chrome options for visible browser (not headless)
+            # Check for Chrome binary on Ubuntu server
+            chrome_paths = [
+                '/usr/bin/google-chrome',
+                '/usr/bin/google-chrome-stable', 
+                '/usr/bin/chromium-browser',
+                '/usr/bin/chromium',
+                '/snap/bin/chromium',
+                '/opt/google/chrome/chrome'
+            ]
+            
+            chrome_binary = None
+            for path in chrome_paths:
+                if shutil.which(path) or os.path.exists(path):
+                    chrome_binary = path
+                    logger.info(f"Found Chrome binary at: {chrome_binary}")
+                    break
+            
+            if not chrome_binary:
+                logger.warning("Chrome binary not found. Will try to use system default.")
+            
+            # Setup Chrome options for server environment
             chrome_options = Options()
-            # Remove headless mode to show browser
-            # chrome_options.add_argument('--headless')  # Commented out to show browser
+            chrome_options.add_argument('--headless')  # Use headless for server
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
@@ -265,6 +374,10 @@ class KKdayScraper:
             chrome_options.add_argument('--disable-images')  # Faster loading
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+            
+            # Set Chrome binary location if found
+            if chrome_binary:
+                chrome_options.binary_location = chrome_binary
             
             driver = webdriver.Chrome(options=chrome_options)
             
