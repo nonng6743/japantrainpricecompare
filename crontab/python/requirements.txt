@@ -2,3 +2,9 @@ requests>=2.31.0
 beautifulsoup4>=4.12.0
 selenium>=4.15.0
 lxml>=4.9.0
+# Ubuntu 24.04.3 LTS specific dependencies
+webdriver-manager>=4.0.0
+# Additional dependencies for better Ubuntu compatibility
+urllib3>=2.0.0
+certifi>=2023.0.0
+charset-normalizer>=3.0.0
