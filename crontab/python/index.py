@@ -222,15 +222,45 @@ class KKdayScraper:
                     product_info['title'] = title_elem.get_text(strip=True)
                     break
             
-            # Extract price
+            # Extract price with comprehensive selectors
             price_selectors = [
-                '.price', '.product-price', '[data-testid="price"]', '.amount'
+                '.price', '.product-price', '[data-testid="price"]', '.amount',
+                '.cost', '.total', '.fare', '.fee', '.booking-price',
+                '.product-cost', '.item-price', '.tour-price', '.pass-price',
+                '[class*="price"]', '[class*="cost"]', '[class*="amount"]',
+                '[id*="price"]', '[id*="cost"]', '[id*="amount"]',
+                '.booking-bar .price', '.product-info .price', '.ticket-price'
             ]
+            
             for selector in price_selectors:
                 price_elem = soup.select_one(selector)
                 if price_elem:
-                    product_info['price'] = price_elem.get_text(strip=True)
-                    break
+                    price_text = price_elem.get_text(strip=True)
+                    if price_text and any(char.isdigit() for char in price_text):
+                        product_info['price'] = price_text
+                        logger.info(f"Found price with selector: {selector}")
+                        break
+            
+            # If no price found with selectors, search for currency symbols in text
+            if 'price' not in product_info:
+                import re
+                # Look for currency patterns in the entire page
+                currency_patterns = [
+                    r'[\$€£¥₹]\s*[\d,]+\.?\d*',  # Currency symbols
+                    r'[\d,]+\.?\d*\s*[\$€£¥₹]',  # Number + currency
+                    r'USD\s*[\d,]+\.?\d*',        # USD format
+                    r'TWD\s*[\d,]+\.?\d*',       # TWD format
+                    r'THB\s*[\d,]+\.?\d*',       # THB format
+                    r'JPY\s*[\d,]+\.?\d*',       # JPY format
+                ]
+                
+                page_text = soup.get_text()
+                for pattern in currency_patterns:
+                    matches = re.findall(pattern, page_text, re.IGNORECASE)
+                    if matches:
+                        product_info['price'] = matches[0]
+                        logger.info(f"Found price with regex pattern: {matches[0]}")
+                        break
             
             # Extract description
             desc_selectors = [
@@ -623,6 +653,9 @@ def main():
             print(f"\n🎯 Successful XPath: {results['used_xpath']}")
         
         # Display price information prominently
+        price_found = False
+        
+        # Check for price_info (from Selenium)
         if 'price_info' in results and results['price_info']:
             price_info = results['price_info']
             print("\n" + "="*30)
@@ -637,8 +670,19 @@ def main():
                 print(f"Numeric value: {price_info['numeric_price']}")
             if price_info.get('error'):
                 print(f"Price extraction error: {price_info['error']}")
-        else:
-            print("\n⚠️  No price information found in the target element")
+            price_found = True
+        
+        # Check for price in product_info (from requests fallback)
+        elif 'product_info' in results and results['product_info'].get('price'):
+            price = results['product_info']['price']
+            print("\n" + "="*30)
+            print("💰 PRICE INFORMATION")
+            print("="*30)
+            print(f"Price: {price}")
+            price_found = True
+        
+        if not price_found:
+            print("\n⚠️  No price information found")
     
     if 'error' in results:
         print(f"Error: {results['error']}")
