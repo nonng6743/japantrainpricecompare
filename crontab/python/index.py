@@ -5,6 +5,7 @@ import time
 import json
 from urllib.parse import urljoin, urlparse
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -236,7 +237,7 @@ class KKdayScraper:
             }
 
     def scrape_with_selenium(self):
-        """Scrape using Selenium for JavaScript-heavy content"""
+        """Scrape using Selenium for JavaScript-heavy content (Ubuntu-friendly)"""
         try:
             from selenium import webdriver
             from selenium.webdriver.common.by import By
@@ -244,11 +245,22 @@ class KKdayScraper:
             from selenium.webdriver.support.ui import WebDriverWait
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
+            import shutil
             
-            # Setup Chrome options for visible browser (not headless)
+            # Resolve Chrome binary on Ubuntu/servers
+            chrome_paths = [
+                '/usr/bin/google-chrome',
+                '/usr/bin/google-chrome-stable',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/chromium',
+                '/snap/bin/chromium',
+                '/opt/google/chrome/chrome'
+            ]
+            chrome_binary = next((p for p in chrome_paths if shutil.which(p) or os.path.exists(p)), None)
+
             chrome_options = Options()
-            # Remove headless mode to show browser
-            # chrome_options.add_argument('--headless')  # Commented out to show browser
+            # Use headless for servers
+            chrome_options.add_argument('--headless=new')
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
@@ -256,9 +268,11 @@ class KKdayScraper:
             chrome_options.add_experimental_option('useAutomationExtension', False)
             chrome_options.add_argument('--disable-extensions')
             chrome_options.add_argument('--disable-plugins')
-            chrome_options.add_argument('--disable-images')  # Faster loading
+            chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+            if chrome_binary:
+                chrome_options.binary_location = chrome_binary
             
             driver = webdriver.Chrome(options=chrome_options)
             
