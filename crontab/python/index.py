@@ -11,9 +11,6 @@ import time
 import json
 from urllib.parse import urljoin, urlparse
 import logging
-import platform
-import os
-import subprocess
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -30,251 +27,55 @@ class KKdayScraper:
         ]
         self.xpath = self.xpath_targets[0]  # Keep original for backward compatibility
         
-        # Detect operating system
-        self.os_info = self.detect_os()
-        
-        # Headers to mimic a real browser (OS-specific)
-        self.headers = self.get_os_specific_headers()
-        
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
-        
-        # Create necessary directories for Ubuntu
-        if self.os_info.get('is_ubuntu'):
-            self._create_ubuntu_directories()
-
-    def detect_os(self):
-        """Detect operating system and return OS information"""
-        try:
-            system = platform.system().lower()
-            release = platform.release()
-            machine = platform.machine()
-            
-            # Check for Ubuntu specifically
-            if system == 'linux':
-                try:
-                    with open('/etc/os-release', 'r') as f:
-                        os_release = f.read()
-                        if 'ubuntu' in os_release.lower():
-                            # Extract Ubuntu version
-                            for line in os_release.split('\n'):
-                                if line.startswith('VERSION_ID='):
-                                    version = line.split('=')[1].strip('"')
-                                    return {
-                                        'system': 'ubuntu',
-                                        'version': version,
-                                        'release': release,
-                                        'machine': machine,
-                                        'is_ubuntu': True
-                                    }
-                except FileNotFoundError:
-                    pass
-            
-            return {
-                'system': system,
-                'version': release,
-                'machine': machine,
-                'is_ubuntu': False
-            }
-        except Exception as e:
-            logger.warning(f"Could not detect OS: {e}")
-            return {
-                'system': 'unknown',
-                'version': 'unknown',
-                'machine': 'unknown',
-                'is_ubuntu': False
-            }
-
-    def get_os_specific_headers(self):
-        """Get OS-specific User-Agent headers"""
-        if self.os_info.get('is_ubuntu'):
-            # Ubuntu/Linux specific User-Agent
-            user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        elif self.os_info['system'] == 'darwin':
-            # macOS User-Agent
-            user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        elif self.os_info['system'] == 'windows':
-            # Windows User-Agent
-            user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        else:
-            # Default Linux User-Agent
-            user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        
-        return {
-            'User-Agent': user_agent,
+        # Headers to mimic a real browser
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
         }
-
-    def check_chrome_installation(self):
-        """Check if Chrome/Chromium is installed and return path"""
-        try:
-            # Common Chrome/Chromium paths on different systems
-            chrome_paths = []
-            
-            if self.os_info.get('is_ubuntu'):
-                # Ubuntu/Linux paths
-                chrome_paths = [
-                    '/usr/bin/google-chrome',
-                    '/usr/bin/google-chrome-stable',
-                    '/usr/bin/chromium-browser',
-                    '/usr/bin/chromium',
-                    '/snap/bin/chromium'
-                ]
-            elif self.os_info['system'] == 'darwin':
-                # macOS paths
-                chrome_paths = [
-                    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-                    '/Applications/Chromium.app/Contents/MacOS/Chromium'
-                ]
-            elif self.os_info['system'] == 'windows':
-                # Windows paths
-                chrome_paths = [
-                    r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-                    r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
-                ]
-            
-            for path in chrome_paths:
-                if os.path.exists(path):
-                    logger.info(f"Found Chrome/Chromium at: {path}")
-                    return path
-            
-            logger.warning("Chrome/Chromium not found in common locations")
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error checking Chrome installation: {e}")
-            return None
-
-    def _create_ubuntu_directories(self):
-        """Create necessary directories for Chrome on Ubuntu"""
-        try:
-            directories = [
-                '/tmp/chrome-user-data',
-                '/tmp/chrome-cache',
-                '/tmp/chrome-media-cache'
-            ]
-            
-            for directory in directories:
-                if not os.path.exists(directory):
-                    os.makedirs(directory, exist_ok=True)
-                    logger.info(f"Created directory: {directory}")
-                    
-            # Set permissions
-            for directory in directories:
-                os.chmod(directory, 0o755)
-                
-        except Exception as e:
-            logger.warning(f"Could not create Ubuntu directories: {e}")
+        
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
 
     def scrape_with_requests(self):
-        """Scrape using requests and BeautifulSoup with enhanced 403 handling"""
+        """Scrape using requests and BeautifulSoup"""
         try:
             logger.info(f"Scraping URL: {self.target_url}")
+            response = self.session.get(self.target_url, timeout=30)
+            response.raise_for_status()
             
-            # Try multiple request strategies for 403 bypass
-            strategies = [
-                self._make_request_with_strategy_1,
-                self._make_request_with_strategy_2,
-                self._make_request_with_strategy_3
-            ]
+            soup = BeautifulSoup(response.content, 'html.parser')
             
-            for i, strategy in enumerate(strategies, 1):
-                try:
-                    logger.info(f"Trying requests strategy {i}/3")
-                    response = strategy()
-                    response.raise_for_status()
-                    
-                    soup = BeautifulSoup(response.content, 'html.parser')
-                    
-                    # Try to find the element using the XPath structure
-                    target_element = self.find_element_by_xpath_structure(soup)
-                    
-                    if target_element:
-                        logger.info(f"Element found using XPath structure with strategy {i}")
-                        price_info = self.extract_price_from_bs4_element(target_element)
-                        
-                        return {
-                            'success': True,
-                            'method': f'requests_strategy_{i}',
-                            'content': target_element.get_text(strip=True),
-                            'html': str(target_element),
-                            'price_info': price_info,
-                            'url': self.target_url
-                        }
-                    else:
-                        # Fallback: extract general product information
-                        result = self.extract_product_info(soup)
-                        if result.get('success'):
-                            result['method'] = f'requests_strategy_{i}_fallback'
-                            return result
-                        
-                except requests.exceptions.RequestException as e:
-                    logger.warning(f"Strategy {i} failed: {e}")
-                    if i == len(strategies):
-                        raise e
-                    continue
-                except Exception as e:
-                    logger.warning(f"Strategy {i} unexpected error: {e}")
-                    if i == len(strategies):
-                        raise e
-                    continue
+            # Try to find the element using the XPath structure
+            # Convert XPath to CSS selectors where possible
+            target_element = self.find_element_by_xpath_structure(soup)
+            
+            if target_element:
+                logger.info("Element found using XPath structure")
+                # Extract price information from the target element
+                price_info = self.extract_price_from_bs4_element(target_element)
+                
+                return {
+                    'success': True,
+                    'method': 'requests',
+                    'content': target_element.get_text(strip=True),
+                    'html': str(target_element),
+                    'price_info': price_info,
+                    'url': self.target_url
+                }
+            else:
+                # Fallback: extract general product information
+                return self.extract_product_info(soup)
                 
         except requests.exceptions.RequestException as e:
-            logger.error(f"All request strategies failed: {e}")
+            logger.error(f"Request failed: {e}")
             return {'success': False, 'error': str(e), 'method': 'requests'}
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return {'success': False, 'error': str(e), 'method': 'requests'}
-
-    def _make_request_with_strategy_1(self):
-        """Strategy 1: Standard headers with session"""
-        return self.session.get(self.target_url, timeout=30)
-
-    def _make_request_with_strategy_2(self):
-        """Strategy 2: Enhanced headers to bypass 403"""
-        enhanced_headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'en-US,en;q=0.9,th;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0',
-            'DNT': '1',
-            'Referer': 'https://www.google.com/',
-        }
-        
-        session = requests.Session()
-        session.headers.update(enhanced_headers)
-        return session.get(self.target_url, timeout=30)
-
-    def _make_request_with_strategy_3(self):
-        """Strategy 3: Mobile headers to bypass detection"""
-        mobile_headers = {
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0',
-        }
-        
-        session = requests.Session()
-        session.headers.update(mobile_headers)
-        return session.get(self.target_url, timeout=30)
 
     def find_element_by_xpath_structure(self, soup):
         """Find element by approximating the XPath structure"""
@@ -446,144 +247,31 @@ class KKdayScraper:
             from selenium import webdriver
             from selenium.webdriver.common.by import By
             from selenium.webdriver.chrome.options import Options
-            from selenium.webdriver.chrome.service import Service
             from selenium.webdriver.support.ui import WebDriverWait
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
             
-            # Setup Chrome options with OS-specific configuration
+            # Setup Chrome options for visible browser (not headless)
             chrome_options = Options()
+            chrome_options.add_argument('--headless')
+
+            # Other optimizations for headless running
+            chrome_options.add_argument('--disable-gpu')  # Disable GPU hardware acceleration
+            chrome_options.add_argument('--no-sandbox')  # Disable sandboxing (necessary for some environments)
+            chrome_options.add_argument('--disable-dev-shm-usage')  # Overcome limited /dev/shm size issues
+            chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # Avoid automation detection
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])  # Hide automation flags
+            chrome_options.add_experimental_option('useAutomationExtension', False)  # Disable automation extension
+            chrome_options.add_argument('--disable-extensions')  # Disable extensions
+            chrome_options.add_argument('--disable-plugins')  # Disable plugins
+            chrome_options.add_argument('--disable-images')  # Skip loading images for faster scraping
+            chrome_options.add_argument('--window-size=1920,1080')  # Set window size (useful for rendering pages)
+
+            # Set custom User-Agent to mimic a real browser
+            chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
+
             
-            # Check for Chrome installation
-            chrome_path = self.check_chrome_installation()
-            
-            # Ubuntu/Linux specific configurations
-            if self.os_info.get('is_ubuntu'):
-                logger.info("Configuring Chrome for Ubuntu 24.04.3 LTS")
-                # Essential arguments for Ubuntu server environments
-                chrome_options.add_argument('--headless=new')  # Use new headless mode
-                chrome_options.add_argument('--no-sandbox')
-                chrome_options.add_argument('--disable-dev-shm-usage')
-                chrome_options.add_argument('--disable-gpu')
-                chrome_options.add_argument('--disable-software-rasterizer')
-                chrome_options.add_argument('--disable-background-timer-throttling')
-                chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-                chrome_options.add_argument('--disable-renderer-backgrounding')
-                chrome_options.add_argument('--disable-features=TranslateUI')
-                chrome_options.add_argument('--disable-ipc-flooding-protection')
-                chrome_options.add_argument('--remote-debugging-port=0')  # Use random port
-                chrome_options.add_argument('--disable-web-security')
-                chrome_options.add_argument('--disable-features=VizDisplayCompositor')
-                chrome_options.add_argument('--run-all-compositor-stages-before-draw')
-                chrome_options.add_argument('--disable-threaded-animation')
-                chrome_options.add_argument('--disable-threaded-scrolling')
-                chrome_options.add_argument('--disable-in-process-stack-traces')
-                chrome_options.add_argument('--disable-histogram-customizer')
-                chrome_options.add_argument('--disable-gl-extensions')
-                chrome_options.add_argument('--disable-composited-antialiasing')
-                chrome_options.add_argument('--disable-canvas-aa')
-                chrome_options.add_argument('--disable-3d-apis')
-                chrome_options.add_argument('--disable-accelerated-2d-canvas')
-                chrome_options.add_argument('--disable-accelerated-jpeg-decoding')
-                chrome_options.add_argument('--disable-accelerated-mjpeg-decode')
-                chrome_options.add_argument('--disable-app-list-dismiss-on-blur')
-                chrome_options.add_argument('--disable-accelerated-video-decode')
-                chrome_options.add_argument('--num-raster-threads=1')
-                chrome_options.add_argument('--enable-logging')
-                chrome_options.add_argument('--log-level=0')
-                chrome_options.add_argument('--v=1')
-                chrome_options.add_argument('--single-process')
-                chrome_options.add_argument('--data-path=/tmp/chrome-user-data')
-                chrome_options.add_argument('--homedir=/tmp')
-                chrome_options.add_argument('--disk-cache-dir=/tmp/chrome-cache')
-                chrome_options.add_argument('--media-cache-dir=/tmp/chrome-media-cache')
-                chrome_options.add_argument('--window-size=1920,1080')
-                chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-                chrome_options.add_experimental_option('useAutomationExtension', False)
-                chrome_options.add_argument('--disable-extensions')
-                chrome_options.add_argument('--disable-plugins')
-                chrome_options.add_argument('--disable-images')  # Faster loading
-                chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-                
-                # Additional Ubuntu-specific fixes
-                chrome_options.add_argument('--disable-setuid-sandbox')
-                chrome_options.add_argument('--disable-zygote')
-                chrome_options.add_argument('--disable-background-networking')
-                chrome_options.add_argument('--disable-default-apps')
-                chrome_options.add_argument('--disable-sync')
-                chrome_options.add_argument('--disable-translate')
-                chrome_options.add_argument('--hide-scrollbars')
-                chrome_options.add_argument('--metrics-recording-only')
-                chrome_options.add_argument('--mute-audio')
-                chrome_options.add_argument('--no-first-run')
-                chrome_options.add_argument('--safebrowsing-disable-auto-update')
-                chrome_options.add_argument('--disable-client-side-phishing-detection')
-                chrome_options.add_argument('--disable-component-update')
-                chrome_options.add_argument('--disable-domain-reliability')
-                chrome_options.add_argument('--disable-features=AudioServiceOutOfProcess')
-                chrome_options.add_argument('--disable-hang-monitor')
-                chrome_options.add_argument('--disable-prompt-on-repost')
-                
-                # Set Chrome binary path if found
-                if chrome_path:
-                    chrome_options.binary_location = chrome_path
-                    
-            else:
-                # Default configuration for other OS
-                chrome_options.add_argument('--no-sandbox')
-                chrome_options.add_argument('--disable-dev-shm-usage')
-                chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-                chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-                chrome_options.add_experimental_option('useAutomationExtension', False)
-                chrome_options.add_argument('--disable-extensions')
-                chrome_options.add_argument('--disable-plugins')
-                chrome_options.add_argument('--disable-images')  # Faster loading
-                chrome_options.add_argument('--window-size=1920,1080')
-                chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-            
-            # Create driver with improved error handling
-            driver = None
-            chrome_attempts = []
-            
-            if self.os_info.get('is_ubuntu'):
-                # Try multiple Chrome/Chromium paths for Ubuntu
-                chrome_attempts = [
-                    '/usr/bin/google-chrome',
-                    '/usr/bin/google-chrome-stable', 
-                    '/usr/bin/chromium-browser',
-                    '/usr/bin/chromium',
-                    '/snap/bin/chromium'
-                ]
-            else:
-                # Use detected path or default
-                if chrome_path:
-                    chrome_attempts = [chrome_path]
-                else:
-                    chrome_attempts = [None]  # Use system default
-            
-            # Try each Chrome path until one works
-            for chrome_binary in chrome_attempts:
-                try:
-                    if chrome_binary and os.path.exists(chrome_binary):
-                        logger.info(f"Trying Chrome binary: {chrome_binary}")
-                        chrome_options.binary_location = chrome_binary
-                        service = Service(executable_path=chrome_binary)
-                        driver = webdriver.Chrome(service=service, options=chrome_options)
-                        logger.info(f"✅ Successfully started Chrome with: {chrome_binary}")
-                        break
-                    elif chrome_binary is None:
-                        # Try system default
-                        logger.info("Trying system default Chrome")
-                        driver = webdriver.Chrome(options=chrome_options)
-                        logger.info("✅ Successfully started Chrome with system default")
-                        break
-                except Exception as e:
-                    logger.warning(f"Failed to start Chrome with {chrome_binary}: {e}")
-                    continue
-            
-            if driver is None:
-                raise Exception("Could not start Chrome with any available binary")
+            driver = webdriver.Chrome(options=chrome_options)
             
             # Execute script to remove webdriver property
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -779,22 +467,14 @@ def main():
     
     print("🚀 Starting KKday Web Scraping...")
     print(f"Target URL: {scraper.target_url}")
-    print(f"Operating System: {scraper.os_info['system']} {scraper.os_info['version']}")
-    if scraper.os_info.get('is_ubuntu'):
-        print(f"Ubuntu Version: {scraper.os_info['version']}")
-    print(f"Architecture: {scraper.os_info['machine']}")
     print(f"XPath Targets:")
     for i, xpath in enumerate(scraper.xpath_targets, 1):
         print(f"  {i}. {xpath}")
     print("-" * 50)
     
-    # Try Selenium first to bypass 403 errors
+    # Try Selenium first (visible browser) to bypass 403 errors
     print("🌐 Opening browser and attempting scraping with Selenium...")
-    if scraper.os_info.get('is_ubuntu'):
-        print("📝 Running in headless mode for Ubuntu server environment")
-    else:
-        print("📝 Browser will close automatically after price extraction")
-    
+    print("📝 Browser will close automatically after price extraction")
     results = scraper.scrape_with_selenium()
     
     if results['success']:
@@ -803,16 +483,15 @@ def main():
     else:
         print(f"❌ Selenium scraping failed: {results.get('error', 'Unknown error')}")
         
-        # Try requests as fallback with multiple strategies
-        print("\n📡 Attempting scraping with requests fallback (3 strategies)...")
+        # Try requests as fallback
+        print("\n📡 Attempting scraping with requests as fallback...")
         requests_results = scraper.scrape_with_requests()
         
         if requests_results['success']:
             print("✅ Requests scraping successful!")
-            print(f"Used strategy: {requests_results.get('method', 'unknown')}")
             results = requests_results
         else:
-            print(f"❌ All requests strategies failed: {requests_results.get('error', 'Unknown error')}")
+            print(f"❌ Requests scraping failed: {requests_results.get('error', 'Unknown error')}")
     
     # Save results
     scraper.save_results(results)
