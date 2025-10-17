@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+Web Scraping Script for KKday Product Page
+URL: https://www.kkday.com/en/product/158964?qs=JR+TOKYO+Wide+Pass
+XPath: /html/body/div[2]/div[2]/div/div/div[2]/div[1]/div/div/div[2]/div[1]/div[1]/div[1]/div[1]/div/div/div/div/div[2]
+"""
 
 import requests
 from bs4 import BeautifulSoup
@@ -5,7 +11,6 @@ import time
 import json
 from urllib.parse import urljoin, urlparse
 import logging
-import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -245,31 +250,13 @@ class KKdayScraper:
             from selenium.webdriver.support.ui import WebDriverWait
             from selenium.webdriver.support import expected_conditions as EC
             from selenium.common.exceptions import TimeoutException, NoSuchElementException
-            import shutil
             
-            # Check for Chrome binary on Ubuntu server
-            chrome_paths = [
-                '/usr/bin/google-chrome',
-                '/usr/bin/google-chrome-stable', 
-                '/usr/bin/chromium-browser',
-                '/usr/bin/chromium',
-                '/snap/bin/chromium',
-                '/opt/google/chrome/chrome'
-            ]
-            
-            chrome_binary = None
-            for path in chrome_paths:
-                if shutil.which(path) or os.path.exists(path):
-                    chrome_binary = path
-                    logger.info(f"Found Chrome binary at: {chrome_binary}")
-                    break
-            
-            # Setup Chrome options for server environment
+            # Setup Chrome options for visible browser (not headless)
             chrome_options = Options()
-            chrome_options.add_argument('--headless')  # Use headless for server
+            # Remove headless mode to show browser
+            # chrome_options.add_argument('--headless')  # Commented out to show browser
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
@@ -278,10 +265,6 @@ class KKdayScraper:
             chrome_options.add_argument('--disable-images')  # Faster loading
             chrome_options.add_argument('--window-size=1920,1080')
             chrome_options.add_argument(f'--user-agent={self.headers["User-Agent"]}')
-            
-            # Set Chrome binary location if found
-            if chrome_binary:
-                chrome_options.binary_location = chrome_binary
             
             driver = webdriver.Chrome(options=chrome_options)
             
