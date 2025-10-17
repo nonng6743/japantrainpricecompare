@@ -1,5 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -33,8 +34,12 @@ chrome_options.add_argument('--disable-gpu')  # Disable GPU acceleration
 chrome_options.add_argument(f'--user-data-dir={temp_user_data_dir}')  # Use unique temporary user data directory
 chrome_options.add_argument('--remote-debugging-port=9222')  # Enable remote debugging
 
+# Path to Chromedriver
+chromedriver_path = "/usr/local/bin/chromedriver"
+
 # Initialize WebDriver with Chrome options
-driver = webdriver.Chrome(options=chrome_options)
+service = Service(executable_path=chromedriver_path)
+driver = webdriver.Chrome(service=service, options=chrome_options)
 
 try:
     # Navigate to the product page
