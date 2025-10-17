@@ -1,9 +1,16 @@
+import tempfile  # Import the tempfile module
+import shutil
+import os
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time
+
+# Create a unique temporary directory for Chrome user data
+temp_user_data_dir = tempfile.mkdtemp()
 
 # Configure Chrome options for normal browser mode (like a regular user)
 chrome_options = Options()
@@ -24,12 +31,15 @@ chrome_options.add_argument('--disable-dev-shm-usage')  # Fix /dev/shm usage lim
 chrome_options.add_argument('--disable-gpu')  # Disable GPU acceleration
 
 # Specify the path to use a unique temporary user data directory
-temp_user_data_dir = tempfile.mkdtemp()
 chrome_options.add_argument(f'--user-data-dir={temp_user_data_dir}')  # Use unique temporary user data directory
 chrome_options.add_argument('--remote-debugging-port=9222')  # Enable remote debugging
 
+# Path to Chromedriver
+chromedriver_path = "/usr/local/bin/chromedriver"
+
 # Initialize WebDriver with Chrome options
-driver = webdriver.Chrome(options=chrome_options)
+service = Service(executable_path=chromedriver_path)
+driver = webdriver.Chrome(service=service, options=chrome_options)
 
 try:
     # Navigate to the product page
