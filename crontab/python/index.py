@@ -4,6 +4,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
+import os
+import shutil
 
 # Configure Chrome options for normal browser mode (like a regular user)
 chrome_options = Options()
@@ -19,6 +21,13 @@ chrome_options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X
 chrome_options.add_argument('--disable-web-security')  # Disable web security for better compatibility
 chrome_options.add_argument('--allow-running-insecure-content')  # Allow insecure content
 chrome_options.add_argument('--disable-features=VizDisplayCompositor')  # Disable compositor for better performance
+
+# Add server environment options to prevent conflicts
+chrome_options.add_argument('--no-sandbox')  # Disable sandbox for server environments
+chrome_options.add_argument('--disable-dev-shm-usage')  # Fix /dev/shm usage limit
+chrome_options.add_argument('--disable-gpu')  # Disable GPU acceleration
+chrome_options.add_argument('--user-data-dir=/tmp/chrome-user-data')  # Use temporary user data directory
+chrome_options.add_argument('--remote-debugging-port=9222')  # Enable remote debugging
 
 # Initialize WebDriver with Chrome options
 driver = webdriver.Chrome(options=chrome_options)
@@ -55,3 +64,12 @@ except Exception as e:
 finally:
     # Close the browser after scraping
     driver.quit()
+    
+    # Clean up temporary user data directory
+    temp_dir = '/tmp/chrome-user-data'
+    if os.path.exists(temp_dir):
+        try:
+            shutil.rmtree(temp_dir)
+            print("Cleaned up temporary Chrome user data directory")
+        except Exception as e:
+            print(f"Warning: Could not clean up temporary directory: {e}")
