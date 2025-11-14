@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, ExternalLink, Package, DollarSign } from "lucide-react"
+import { apiUrl } from "@/lib/env"
 
 export default function ProductsPage() {
   const router = useRouter()
@@ -14,11 +15,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [error, setError] = useState("")
-
-  const apiBaseUrl =
-    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/?$/, "/") ||
-    "http://localhost:4000/"
-  const scrapeEndpoint = `${apiBaseUrl}api/scrape`
+  const scrapeEndpoint = apiUrl("api/scrape")
 
   useEffect(() => {
     const fetchProducts = async () => {

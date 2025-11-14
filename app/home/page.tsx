@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { apiUrl } from "@/lib/env"
 
 export default function HomePage() {
   const router = useRouter()
@@ -243,7 +244,7 @@ export default function HomePage() {
         throw new Error("JSON ไม่ถูกต้อง กรุณาตรวจสอบรูปแบบ JSON")
       }
 
-      const response = await fetch("http://localhost:4000/api/scrape/getKkday", {
+      const response = await fetch(apiUrl("api/scrape/getKkday"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -282,7 +283,7 @@ export default function HomePage() {
         throw new Error("JSON ไม่ถูกต้อง กรุณาตรวจสอบรูปแบบ JSON")
       }
 
-      const response = await fetch("http://localhost:4000/api/scrape/getKlook", {
+      const response = await fetch(apiUrl("api/scrape/getKlook"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -337,8 +338,8 @@ export default function HomePage() {
       setLoading(true)
       setError("")
 
-      console.log("🔍 กำลังเรียก API: http://localhost:4000/api/scrape")
-      const response = await fetch("http://localhost:4000/api/scrape")
+      console.log("🔍 กำลังเรียก API:", apiUrl("api/scrape"))
+      const response = await fetch(apiUrl("api/scrape"))
 
       console.log("📡 Response status:", response.status)
       if (!response.ok) throw new Error(`API Error: ${response.status}`)
@@ -693,13 +694,13 @@ export default function HomePage() {
       const token = localStorage.getItem("token")
 
       // ใช้ PUT สำหรับการอัปเดตที่ endpoint /api/scrape/{id}
-      const apiUrl = `http://localhost:4000/api/scrape/${selectedProduct._id || selectedProduct.no_product}`
+      const updateUrl = apiUrl(`api/scrape/${selectedProduct._id || selectedProduct.no_product}`)
 
-      console.log("📤 Sending PUT request to:", apiUrl)
+      console.log("📤 Sending PUT request to:", updateUrl)
       console.log("📦 Payload:", payload)
 
       // ใช้ PUT สำหรับการอัปเดต
-      const response = await fetch(apiUrl, {
+      const response = await fetch(updateUrl, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
