@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { apiUrl } from '@/lib/env'
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
 
-    // ส่งข้อมูลไปยัง backend ที่ port 4000
-    const backendResponse = await fetch('http://localhost:4000/api/users/login', {
+    // ส่งข้อมูลไปยัง backend ที่ระบบหลัก
+    const backendResponse = await fetch(apiUrl('api/users/login'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

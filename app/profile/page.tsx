@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { User, Calendar, Shield, Edit, Save, X } from "lucide-react"
+import { apiUrl } from "@/lib/env"
 
 interface UserProfile {
   id: string | number
@@ -105,7 +106,7 @@ export default function ProfilePage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:4000/api/users/${user.id}`, {
+      const response = await fetch(apiUrl(`api/users/${user.id}`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { apiUrl } from "@/lib/env"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -122,7 +123,7 @@ export default function AdminPage() {
   const handleAddUser = async () => {
     try {
       const token = localStorage.getItem("token")
-      const response = await fetch("http://localhost:4000/api/users/register", {
+      const response = await fetch(apiUrl("api/users/register"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -158,7 +159,7 @@ export default function AdminPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:4000/api/users/${selectedUser._id}`,
+        apiUrl(`api/users/${selectedUser._id}`),
         {
           method: "PUT",
           headers: {
@@ -189,7 +190,7 @@ export default function AdminPage() {
     const token = localStorage.getItem("token")
 
     try {
-      const response = await fetch(`http://localhost:4000/api/users/${userId}`, {
+      const response = await fetch(apiUrl(`api/users/${userId}`), {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,

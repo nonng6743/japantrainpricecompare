@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Lock, User, LogIn } from "lucide-react"
+import { apiUrl } from "@/lib/env"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -22,7 +23,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await fetch("http://localhost:4000/api/users/login", {
+      const response = await fetch(apiUrl("api/users/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

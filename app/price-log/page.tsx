@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Search, RefreshCw, DollarSign, Calendar, Package, Clock, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { apiUrl } from "@/lib/env"
 
 export default function PriceLogPage() {
   const router = useRouter()
@@ -26,12 +27,14 @@ export default function PriceLogPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageLimit, setPageLimit] = useState(50)
 
+  const priceLogEndpoint = apiUrl("api/price-log")
+
   const fetchPriceLogs = async (page: number = 1, limit: number = 50) => {
     try {
       setLoading(true)
       setError("")
 
-      const url = `http://localhost:4000/api/price-log?page=${page}&limit=${limit}`
+      const url = `${priceLogEndpoint}?page=${page}&limit=${limit}`
       console.log("🔍 กำลังเรียก API:", url)
       const response = await fetch(url)
 
@@ -172,7 +175,7 @@ export default function PriceLogPage() {
             ประวัติราคา (Price Log)
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            ข้อมูลประวัติราคาที่ดึงมาจาก http://localhost:4000/api/price-log
+            ข้อมูลประวัติราคาที่ดึงมาจาก {priceLogEndpoint}
           </p>
         </div>
 
@@ -588,7 +591,7 @@ export default function PriceLogPage() {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-gray-600 space-y-1">
-                <p>API URL: http://localhost:4000/api/price-log</p>
+                <p>API URL: {priceLogEndpoint}</p>
                 <p>จำนวนรายการในหน้า: {priceLogs.length}</p>
                 <p>จำนวนรายการที่กรองแล้ว: {filteredLogs.length}</p>
                 <p>จำนวนรายการทั้งหมด: {pagination.total}</p>
