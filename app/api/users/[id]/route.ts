@@ -1,22 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { users } from '@/lib/database'
 
-// Mock users database (ใช้ตัวแปรเดียวกับ route.ts หลัก)
-// ในการใช้งานจริงควรเชื่อมต่อกับ database
-let users = [
-  { id: 1, username: 'admin', password: 'admin123', role: 'admin', name: 'ผู้ดูแลระบบ' },
-  { id: 2, username: 'user', password: 'user123', role: 'user', name: 'ผู้ใช้ทั่วไป' },
-]
-
-// PUT - แก้ไข user
+// PUT - อัปเดตข้อมูล user
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = parseInt(params.id)
-    const { username, password, name, role } = await request.json()
+    const userId = parseInt(params.id)
+    const { firstName, lastName, email } = await request.json()
 
-    const userIndex = users.findIndex((u) => u.id === id)
+    // Validate required fields
+    if (!firstName || !lastName || !email) {
+      return NextResponse.json(
+        { success: false, error: 'กรุณากรอกข้อมูลให้ครบถ้วน' },
+        { status: 400 }
+      )
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, error: 'รูปแบบอีเมลไม่ถูกต้อง' },
+        { status: 400 }
+      )
+    }
+
+    // Find user
+    const userIndex = users.findIndex(u => u.id === userId)
     if (userIndex === -1) {
       return NextResponse.json(
         { success: false, error: 'ไม่พบผู้ใช้' },
@@ -24,62 +36,67 @@ export async function PUT(
       )
     }
 
-    // ตรวจสอบว่า username ซ้ำกับคนอื่นหรือไม่
-    const existingUser = users.find((u) => u.username === username && u.id !== id)
+    // Check if email is already used by another user
+    const existingUser = users.find(u => u.email === email && u.id !== userId)
     if (existingUser) {
       return NextResponse.json(
-        { success: false, error: 'ชื่อผู้ใช้นี้มีอยู่แล้ว' },
+        { success: false, error: 'อีเมลนี้มีอยู่แล้ว' },
         { status: 400 }
       )
     }
 
-    // อัปเดตข้อมูล
+    // Update user
     users[userIndex] = {
       ...users[userIndex],
-      username,
-      name,
-      role,
-      // อัปเดต password ถ้ามีการส่งมา
-      ...(password && { password }),
+      firstName,
+      lastName,
+      email,
     }
 
+    // Return updated user without password
     const { password: _, ...userWithoutPassword } = users[userIndex]
 
     return NextResponse.json({
       success: true,
+      message: 'อัปเดตข้อมูลสำเร็จ',
       user: userWithoutPassword,
     })
+
   } catch (error) {
+    console.error('Update user error:', error)
     return NextResponse.json(
-      { success: false, error: 'เกิดข้อผิดพลาด' },
+      { success: false, error: 'เกิดข้อผิดพลาดในการอัปเดตข้อมูล' },
       { status: 500 }
     )
   }
 }
 
-// DELETE - ลบ user
-export async function DELETE(
+// GET - ดึงข้อมูล user ตาม ID
+export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = parseInt(params.id)
+    const userId = parseInt(params.id)
+    const user = users.find(u => u.id === userId)
 
-    const userIndex = users.findIndex((u) => u.id === id)
-    if (userIndex === -1) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'ไม่พบผู้ใช้' },
         { status: 404 }
       )
     }
 
-    users.splice(userIndex, 1)
+    // Return user without password
+    const { password: _, ...userWithoutPassword } = user
 
     return NextResponse.json({
       success: true,
-      message: 'ลบผู้ใช้สำเร็จ',
+      user: userWithoutPassword,
     })
+
   } catch (error) {
+    console.error('Get user error:', error)
     return NextResponse.json(
       { success: false, error: 'เกิดข้อผิดพลาด' },
       { status: 500 }

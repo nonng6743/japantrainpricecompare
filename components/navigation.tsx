@@ -6,14 +6,13 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, Zap, Home, Info, BookOpen, Mail, Package, LogIn, LogOut, User } from "lucide-react"
+import { Menu, Zap, Home, Package, LogIn, LogOut, User, TrendingUp, Clock } from "lucide-react"
 
 const navigation = [
   { name: "หน้าหลัก", href: "/", icon: Home },
   { name: "สินค้าจาก API", href: "/products", icon: Package },
-  { name: "เกี่ยวกับเรา", href: "/about", icon: Info },
-  { name: "คู่มือการใช้งาน", href: "/guide", icon: BookOpen },
-  { name: "ติดต่อเรา", href: "/addCompare", icon: Mail },
+  { name: "ประวัติราคา", href: "/price-log", icon: Clock },
+  { name: "เทียมราคา", href: "/addCompare", icon: TrendingUp },
 ]
 
 export function Navigation() {
@@ -21,26 +20,55 @@ export function Navigation() {
   const router = useRouter()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [userName, setUserName] = useState("")
+  const [userRole, setUserRole] = useState("")
 
   useEffect(() => {
-    // ตรวจสอบว่า login แล้วหรือยัง
+    // ตรวจสอบว่า login แล้วหรือยัง (ตรวจสอบ localStorage ก่อน)
+    if (typeof window === 'undefined') return
+    
     const token = localStorage.getItem("token")
     const user = localStorage.getItem("user")
     
-    if (token && user) {
+    if (token && user && user !== 'null' && user !== 'undefined' && user !== '') {
       setIsLoggedIn(true)
-      const userData = JSON.parse(user)
-      setUserName(userData.name)
+      try {
+        const userData = JSON.parse(user)
+        // ใช้ firstName และ lastName หรือ username ถ้าไม่มี
+        setUserName(userData.firstName && userData.lastName 
+          ? `${userData.firstName} ${userData.lastName}`
+          : userData.username || userData.email || 'ผู้ใช้'
+        )
+        console.log('userData.role'+userData.role)
+        setUserRole(userData.role || '')
+      } catch (error) {
+        console.error('Error parsing user data:', error)
+        setUserName('ผู้ใช้')
+        setUserRole('')
+        // ลบข้อมูลที่เสียออกจาก localStorage
+        localStorage.removeItem("user")
+        localStorage.removeItem("token")
+        setIsLoggedIn(false)
+      }
+    } else {
+      setIsLoggedIn(false)
+      setUserName("")
+      setUserRole("")
     }
   }, [])
 
   const handleLogout = () => {
     // ลบ cookie
-    document.cookie = "token=; path=/; max-age=0"
+    if (typeof document !== 'undefined') {
+      document.cookie = "token=; path=/; max-age=0"
+    }
     // ลบ localStorage
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem("token")
+      localStorage.removeItem("user")
+    }
     setIsLoggedIn(false)
+    setUserName("")
+    setUserRole("")
     router.push("/login")
   }
 
@@ -84,19 +112,45 @@ export function Navigation() {
             })}
             
             {/* User Info & Logout */}
-            {isLoggedIn ? (
-              <div className="flex items-center gap-2 ml-4 pl-4 border-l">
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l">
+              {/* แสดงเมนู Admin เฉพาะเมื่อ user มี role เป็น admin */}
+              {isLoggedIn && userRole === "admin" && (
                 <Link href="/admin">
+                  <Button variant="ghost" size="sm">
+                    <User className="h-4 w-4 mr-2" />
+                    จัดการผู้ใช้
+                  </Button>
+                </Link>
+              )}
+              
+              {/* เมนูโปรไฟล์ - แสดงเสมอ */}
+              <Link href="/profile">
+                <Button variant="ghost" size="sm">
+                  <User className="h-4 w-4 mr-2" />
+                  โปรไฟล์
+                </Button>
+              </Link>
+              
+              {/* แสดงข้อมูล user ถ้า login แล้ว */}
+              {isLoggedIn ? (
+                <>
                   <Button variant="ghost" size="sm">
                     <User className="h-4 w-4 mr-2" />
                     {userName}
                   </Button>
+                  <Button variant="outline" size="sm" onClick={handleLogout}>
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </>
+              ) : (
+                <Link href="/login">
+                  <Button variant="outline" size="sm">
+                    <LogIn className="h-4 w-4 mr-2" />
+                    เข้าสู่ระบบ
+                  </Button>
                 </Link>
-                <Button variant="outline" size="sm" onClick={handleLogout}>
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : null}
+              )}
+            </div>
           </nav>
 
           {/* Mobile Navigation */}
@@ -126,6 +180,67 @@ export function Navigation() {
                       </Link>
                     )
                   })}
+                  
+                  {/* เมนูโปรไฟล์ - แสดงเสมอ */}
+                  <Link href="/profile">
+                    <Button
+                      variant={pathname === "/profile" ? "default" : "ghost"}
+                      className={cn(
+                        "w-full justify-start gap-3",
+                        pathname === "/profile" && "bg-blue-600 text-white"
+                      )}
+                    >
+                      <User className="h-4 w-4" />
+                      โปรไฟล์
+                    </Button>
+                  </Link>
+                  
+                  {/* แสดงเมนู Admin เฉพาะเมื่อ user มี role เป็น admin */}
+                  {isLoggedIn && userRole === "admin" && (
+                    <Link href="/admin">
+                      <Button
+                        variant={pathname === "/admin" ? "default" : "ghost"}
+                        className={cn(
+                          "w-full justify-start gap-3",
+                          pathname === "/admin" && "bg-blue-600 text-white"
+                        )}
+                      >
+                        <User className="h-4 w-4" />
+                        จัดการผู้ใช้
+                      </Button>
+                    </Link>
+                  )}
+                  
+                  {/* User Info & Logout สำหรับ Mobile */}
+                  {isLoggedIn ? (
+                    <>
+                      <div className="border-t pt-4 mt-4">
+                        <div className="text-sm text-gray-600 mb-2">
+                          เข้าสู่ระบบเป็น: {userName}
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start gap-3"
+                          onClick={handleLogout}
+                        >
+                          <LogOut className="h-4 w-4" />
+                          ออกจากระบบ
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="border-t pt-4 mt-4">
+                      <Link href="/login">
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start gap-3"
+                        >
+                          <LogIn className="h-4 w-4" />
+                          เข้าสู่ระบบ
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
                 </div>
               </SheetContent>
             </Sheet>

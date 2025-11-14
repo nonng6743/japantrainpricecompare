@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,10 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Search, ExternalLink, Package, DollarSign } from "lucide-react"
 
 export default function ProductsPage() {
+  const router = useRouter()
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [error, setError] = useState("")
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -147,7 +150,7 @@ export default function ProductsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProducts.map((product, index) => (
-                <Card key={product.no_product || index} className="overflow-hidden">
+                <Card key={`product-${product.no_product || index}-${index}`} className="overflow-hidden">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">

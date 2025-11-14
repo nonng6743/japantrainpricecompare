@@ -23,22 +23,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { 
-  Users, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  LogOut, 
+import {
+  Users,
+  Plus,
+  Edit,
+  Trash2,
+  LogOut,
   Shield,
-  User as UserIcon
+  User as UserIcon,
 } from "lucide-react"
 
 interface User {
-  id: number
+  id?: number
+  _id?: string
   username: string
-  name: string
+  email: string
+  firstName: string
+  lastName: string
   role: string
-  password?: string
+  lastLogin?: string | null
+  createdAt?: string
 }
 
 export default function AdminPage() {
@@ -48,35 +52,59 @@ export default function AdminPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  
-  // Form states
+
   const [formData, setFormData] = useState({
     username: "",
+    email: "",
     password: "",
-    name: "",
+    firstName: "",
+    lastName: "",
     role: "user",
   })
 
+  // 🔹 ตรวจสอบ token และดึงข้อมูล
   useEffect(() => {
-    // ตรวจสอบ authentication
+    if (typeof window === "undefined") return
+
     const token = localStorage.getItem("token")
     const user = localStorage.getItem("user")
-    
+
     if (!token || !user) {
       router.push("/login")
       return
     }
-    
-    setCurrentUser(JSON.parse(user))
-    fetchUsers()
+
+    try {
+      const parsed = JSON.parse(user)
+      setCurrentUser(parsed)
+      fetchUsers(token)
+    } catch (err) {
+      console.error("Error parsing user:", err)
+      router.push("/login")
+    }
   }, [router])
 
-  const fetchUsers = async () => {
+  // 🔹 ดึงข้อมูลจาก backend จริง
+  const fetchUsers = async (token: string) => {
     try {
-      const response = await fetch("/api/users")
+      console.log("🔍 Fetching users from /api/users")
+      const response = await fetch("/api/users", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      
+      console.log("📡 Response status:", response.status)
       const data = await response.json()
-      if (data.success) {
+      console.log("📦 Users fetched:", data)
+
+      if (data.success && data.users) {
         setUsers(data.users)
+      } else if (Array.isArray(data)) {
+        // กรณี backend ส่ง array ตรง ๆ
+        setUsers(data)
+      } else {
+        console.warn("⚠️ Unexpected data format:", data)
       }
     } catch (error) {
       console.error("Error fetching users:", error)
@@ -84,69 +112,98 @@ export default function AdminPage() {
   }
 
   const handleLogout = () => {
-    // ลบ cookie
     document.cookie = "token=; path=/; max-age=0"
-    // ลบ localStorage
     localStorage.removeItem("token")
     localStorage.removeItem("user")
     router.push("/login")
   }
 
+  // 🔹 เพิ่มผู้ใช้
   const handleAddUser = async () => {
     try {
-      const response = await fetch("/api/users", {
+      const token = localStorage.getItem("token")
+      const response = await fetch("http://localhost:4000/api/users/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(formData),
       })
-
       const data = await response.json()
       if (data.success) {
         setIsAddDialogOpen(false)
-        setFormData({ username: "", password: "", name: "", role: "user" })
-        fetchUsers()
+        setFormData({
+          username: "",
+          email: "",
+          password: "",
+          firstName: "",
+          lastName: "",
+          role: "user",
+        })
+        fetchUsers(token!)
+      } else {
+        alert(data.error || "เกิดข้อผิดพลาดในการเพิ่มผู้ใช้")
       }
     } catch (error) {
       console.error("Error adding user:", error)
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์")
     }
   }
 
+  // 🔹 แก้ไขผู้ใช้
   const handleEditUser = async () => {
     if (!selectedUser) return
+    const token = localStorage.getItem("token")
 
     try {
-      const response = await fetch(`/api/users/${selectedUser.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
+      const response = await fetch(
+        `http://localhost:4000/api/users/${selectedUser._id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData),
+        }
+      )
 
       const data = await response.json()
       if (data.success) {
         setIsEditDialogOpen(false)
         setSelectedUser(null)
-        setFormData({ username: "", password: "", name: "", role: "user" })
-        fetchUsers()
+        fetchUsers(token!)
+      } else {
+        alert(data.error || "ไม่สามารถอัปเดตผู้ใช้ได้")
       }
     } catch (error) {
       console.error("Error editing user:", error)
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์")
     }
   }
 
-  const handleDeleteUser = async (userId: number) => {
+  // 🔹 ลบผู้ใช้
+  const handleDeleteUser = async (userId: string) => {
     if (!confirm("ต้องการลบผู้ใช้นี้หรือไม่?")) return
+    const token = localStorage.getItem("token")
 
     try {
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await fetch(`http://localhost:4000/api/users/${userId}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       })
-
       const data = await response.json()
       if (data.success) {
-        fetchUsers()
+        fetchUsers(token!)
+      } else {
+        alert(data.error || "ไม่สามารถลบผู้ใช้ได้")
       }
     } catch (error) {
       console.error("Error deleting user:", error)
+      alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์")
     }
   }
 
@@ -154,8 +211,10 @@ export default function AdminPage() {
     setSelectedUser(user)
     setFormData({
       username: user.username,
+      email: user.email,
       password: "",
-      name: user.name,
+      firstName: user.firstName,
+      lastName: user.lastName,
       role: user.role,
     })
     setIsEditDialogOpen(true)
@@ -173,12 +232,12 @@ export default function AdminPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">จัดการผู้ใช้</h1>
-              <p className="text-gray-600">
-                ยินดีต้อนรับ, {currentUser.name}
+              <div className="text-gray-600">
+                ยินดีต้อนรับ, {currentUser.firstName || currentUser.username}
                 <Badge variant="secondary" className="ml-2">
-                  {currentUser.role === "admin" ? "ผู้ดูแลระบบ" : "ผู้ใช้"}
+                  {currentUser.role === "admin" ? "ผู้ดูแลระบบ" : "ผู้ใช้ทั่วไป"}
                 </Badge>
-              </p>
+              </div>
             </div>
             <Button variant="outline" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
@@ -234,7 +293,7 @@ export default function AdminPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>รายการผู้ใช้</CardTitle>
+              <CardTitle>รายการผู้ใช้ทั้งหมด</CardTitle>
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -257,6 +316,15 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="add-email">อีเมล</Label>
+                      <Input
+                        id="add-email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="add-password">รหัสผ่าน</Label>
                       <Input
                         id="add-password"
@@ -265,13 +333,23 @@ export default function AdminPage() {
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="add-name">ชื่อ-นามสกุล</Label>
-                      <Input
-                        id="add-name"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="add-firstname">ชื่อจริง</Label>
+                        <Input
+                          id="add-firstname"
+                          value={formData.firstName}
+                          onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="add-lastname">นามสกุล</Label>
+                        <Input
+                          id="add-lastname"
+                          value={formData.lastName}
+                          onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        />
+                      </div>
                     </div>
                     <div>
                       <Label htmlFor="add-role">สิทธิ์</Label>
@@ -293,25 +371,32 @@ export default function AdminPage() {
               </Dialog>
             </div>
           </CardHeader>
+
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>ID</TableHead>
                   <TableHead>ชื่อผู้ใช้</TableHead>
-                  <TableHead>ชื่อ-นามสกุล</TableHead>
+                  <TableHead>อีเมล</TableHead>
+                  <TableHead>ชื่อจริง</TableHead>
+                  <TableHead>นามสกุล</TableHead>
                   <TableHead>สิทธิ์</TableHead>
                   <TableHead className="text-right">จัดการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>{user.id}</TableCell>
-                    <TableCell className="font-medium">{user.username}</TableCell>
-                    <TableCell>{user.name}</TableCell>
+                {users.map((user, index) => (
+                  <TableRow key={user._id || user.id || `user-${index}`}>
+                    <TableCell>{user._id || user.id}</TableCell>
+                    <TableCell>{user.username}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.firstName}</TableCell>
+                    <TableCell>{user.lastName}</TableCell>
                     <TableCell>
-                      <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                      <Badge
+                        variant={user.role === "admin" ? "default" : "secondary"}
+                      >
                         {user.role === "admin" ? "ผู้ดูแลระบบ" : "ผู้ใช้ทั่วไป"}
                       </Badge>
                     </TableCell>
@@ -327,8 +412,8 @@ export default function AdminPage() {
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => handleDeleteUser(user.id)}
-                          disabled={user.id === currentUser.id}
+                          onClick={() => handleDeleteUser(user._id || user.id?.toString() || '')}
+                          disabled={user._id === currentUser._id}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -340,58 +425,6 @@ export default function AdminPage() {
             </Table>
           </CardContent>
         </Card>
-
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>แก้ไขผู้ใช้</DialogTitle>
-              <DialogDescription>แก้ไขข้อมูลผู้ใช้</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <Label htmlFor="edit-username">ชื่อผู้ใช้</Label>
-                <Input
-                  id="edit-username"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-password">รหัสผ่านใหม่ (เว้นว่างถ้าไม่ต้องการเปลี่ยน)</Label>
-                <Input
-                  id="edit-password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-name">ชื่อ-นามสกุล</Label>
-                <Input
-                  id="edit-name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-role">สิทธิ์</Label>
-                <select
-                  id="edit-role"
-                  className="w-full border rounded-md p-2"
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                >
-                  <option value="user">ผู้ใช้ทั่วไป</option>
-                  <option value="admin">ผู้ดูแลระบบ</option>
-                </select>
-              </div>
-              <Button onClick={handleEditUser} className="w-full">
-                บันทึกการแก้ไข
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </div>
   )
