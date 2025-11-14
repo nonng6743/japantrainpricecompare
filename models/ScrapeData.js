@@ -11,6 +11,10 @@ const packageSchema = new mongoose.Schema(
       type: String,
       default: null, // เช่น "Kyushu Rail Pass 3 Days"
     },
+    day: {
+      type: String,
+      default: null, 
+    },
     detail: {
       type: String,
       default: null,

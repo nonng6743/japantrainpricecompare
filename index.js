@@ -4,6 +4,7 @@ import cors from 'cors';
 import { connectDB } from './config/database.js';
 import scrapeRoutes from './routes/scrapeRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import priceLogRoutes from './routes/priceLogRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -15,6 +16,7 @@ app.use(express.json());
 // Routes
 app.use('/api/scrape', scrapeRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/price-log', priceLogRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

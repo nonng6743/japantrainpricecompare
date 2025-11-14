@@ -240,6 +240,46 @@ export { getKlook };
               const numericPrice = priceValue.replace(/฿\s*|,/g, '').trim();
               console.log(`   💵 Numeric price: ${numericPrice}`);
               
+              // Get old price for logging
+              const oldPrice = packageItem.price || null;
+              
+              // Always log price update (even if price hasn't changed)
+              try {
+                const recordId = typeof record._id === 'object' && record._id.$oid 
+                  ? record._id.$oid 
+                  : record._id;
+                
+                await axios.post(
+                  `${API_URL.replace('/api/scrape', '/api/price-log')}`,
+                  {
+                    scrape_data_id: recordId,
+                    source: 'klook',
+                    package_index: i,
+                    package_name: packageItem.name || null,
+                    package_day: packageItem.day || null,
+                    name_product: record.name_product || null,
+                    old_price: oldPrice,
+                    new_price: numericPrice,
+                    update_method: 'cron',
+                    status: 'success',
+                    metadata: {
+                      params: params,
+                      package_name: packageItem.name
+                    }
+                  },
+                  {
+                    timeout: 5000,
+                    headers: {
+                      'Content-Type': 'application/json'
+                    }
+                  }
+                );
+                console.log(`   📝 Price log created: ${oldPrice} → ${numericPrice}${oldPrice === numericPrice ? ' (no change)' : ''}`);
+              } catch (logError) {
+                console.error(`   ⚠️ Failed to create price log:`, logError.message);
+                // Don't fail the whole process if logging fails
+              }
+              
               // Update screenshotPath with price
               const updatedScreenshotPath = {
                 ...params,
