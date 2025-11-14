@@ -18,6 +18,7 @@ export default function ContactPage() {
   const [urlKKDay, setUrlKKDay] = useState("");
   const [urlKLook, setUrlKLook] = useState("");
   const [detail, setDetail] = useState("");
+<<<<<<< HEAD
 
   // ข้อมูลเพิ่มเติม
   // Dynamic inputs state for KKDay
@@ -298,6 +299,10 @@ export default function ContactPage() {
       return input;
     }));
   };
+=======
+  const apiUrl = process.env.API_URL;
+  const apiKey = process.env.API_KEY;
+>>>>>>> 343cea3739fde266221f0ca7252947d79c928eb7
 
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();  // ป้องกันไม่ให้ฟอร์ม submit
@@ -385,7 +390,7 @@ export default function ContactPage() {
 
     try {
       // Make the API call
-      const response = await fetch("http://localhost:4000/api/scrape", {
+      const response = await fetch(`${apiUrl}api/scrape`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
