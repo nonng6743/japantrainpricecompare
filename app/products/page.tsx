@@ -14,12 +14,11 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [error, setError] = useState("")
-<<<<<<< HEAD
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-=======
-  const apiUrl = process.env.API_URL;
-  const apiKey = process.env.API_KEY;
->>>>>>> 343cea3739fde266221f0ca7252947d79c928eb7
+
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/?$/, "/") ||
+    "http://localhost:4000/"
+  const scrapeEndpoint = `${apiBaseUrl}api/scrape`
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -27,8 +26,8 @@ export default function ProductsPage() {
         setLoading(true)
         setError("")
 
-        console.log(`🔍 กำลังเรียก API: ${apiUrl}api/scrape`)
-        const response = await fetch(`${apiUrl}api/scrape`)
+        console.log(`🔍 กำลังเรียก API: ${scrapeEndpoint}`)
+        const response = await fetch(scrapeEndpoint)
 
         console.log("📡 Response status:", response.status)
         if (!response.ok) throw new Error(`API Error: ${response.status}`)
@@ -92,7 +91,7 @@ export default function ProductsPage() {
             ข้อมูลสินค้าจาก API
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            ข้อมูลสินค้าที่ดึงมาจาก http://localhost:4000/api/products
+            ข้อมูลสินค้าที่ดึงมาจาก {scrapeEndpoint}
           </p>
         </div>
 
@@ -247,7 +246,7 @@ export default function ProductsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-gray-600 space-y-1">
-                <p>API URL: http://localhost:4000/api/products</p>
+                <p>API URL: {scrapeEndpoint}</p>
                 <p>Total Products: {products.length}</p>
                 <p>Filtered Products: {filteredProducts.length}</p>
                 <p>Search Term: "{searchTerm}"</p>
