@@ -77,7 +77,9 @@ export default function AdminPage() {
 
     try {
       const parsed = JSON.parse(user)
-      setCurrentUser(parsed)
+      // กรอง lineUserId ออกก่อนแสดง
+      const { lineUserId, ...userWithoutLineUserId } = parsed
+      setCurrentUser(userWithoutLineUserId)
       fetchUsers(token)
     } catch (err) {
       console.error("Error parsing user:", err)
@@ -100,10 +102,19 @@ export default function AdminPage() {
       console.log("📦 Users fetched:", data)
 
       if (data.success && data.users) {
-        setUsers(data.users)
+        // กรอง lineUserId ออกจากข้อมูล user แต่ละคน
+        const usersWithoutLineUserId = data.users.map((user: any) => {
+          const { lineUserId, ...userWithoutLineUserId } = user
+          return userWithoutLineUserId
+        })
+        setUsers(usersWithoutLineUserId)
       } else if (Array.isArray(data)) {
-        // กรณี backend ส่ง array ตรง ๆ
-        setUsers(data)
+        // กรณี backend ส่ง array ตรง ๆ - กรอง lineUserId ออก
+        const usersWithoutLineUserId = data.map((user: any) => {
+          const { lineUserId, ...userWithoutLineUserId } = user
+          return userWithoutLineUserId
+        })
+        setUsers(usersWithoutLineUserId)
       } else {
         console.warn("⚠️ Unexpected data format:", data)
       }

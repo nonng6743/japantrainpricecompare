@@ -52,7 +52,9 @@ export default function ProfilePage() {
 
       try {
         const parsedUser = JSON.parse(userData)
-        console.log("✅ Parsed user object:", parsedUser)
+        // กรอง lineUserId ออกก่อนแสดง
+        const { lineUserId, ...userWithoutLineUserId } = parsedUser
+        console.log("✅ Parsed user object:", userWithoutLineUserId)
 
         const formattedUser: UserProfile = {
           id: parsedUser._id || parsedUser.id || 0,

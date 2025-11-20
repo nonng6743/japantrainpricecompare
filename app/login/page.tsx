@@ -35,13 +35,16 @@ export default function LoginPage() {
       if (response.ok && data.success && data.data) {
         const { token, user } = data.data
 
-        // บันทึก token / user
+        // กรอง lineUserId ออกก่อนบันทึก
+        const { lineUserId, ...userWithoutLineUserId } = user || {}
+
+        // บันทึก token / user (ไม่มี lineUserId)
         localStorage.setItem("token", token)
-        localStorage.setItem("user", JSON.stringify(user))
+        localStorage.setItem("user", JSON.stringify(userWithoutLineUserId))
 
         document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}`
 
-        console.log("✅ Saved user:", user)
+        console.log("✅ Saved user (without lineUserId):", userWithoutLineUserId)
         console.log("✅ Saved token:", token)
 
         // หน่วงเวลาเล็กน้อยก่อน redirect
