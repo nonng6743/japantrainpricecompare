@@ -13,12 +13,13 @@ const __dirname = path.dirname(__filename);
     console.log('🚀 Starting all price update loops concurrently...');
     console.log('📅 Time:', new Date().toISOString());
     console.log('='.repeat(60));
-    console.log('🔄 Running KKDay and Klook updates in parallel...\n');
+    console.log('🔄 Running KKDay, Klook, and JP updates in parallel...\n');
 
     const kkdayScript = path.join(__dirname, 'loopUpdatePrice_Kkday.js');
     const klookScript = path.join(__dirname, 'loopUpdatePrice_Klook.js');
+    const jpScript = path.join(__dirname, 'loopUpdatePrice_jp.js');
 
-    // Spawn both processes concurrently
+    // Spawn all three processes concurrently
     const kkdayProcess = spawn('node', [kkdayScript], {
       stdio: 'inherit',
       shell: true,
@@ -31,9 +32,16 @@ const __dirname = path.dirname(__filename);
       env: { ...process.env }
     });
 
+    const jpProcess = spawn('node', [jpScript], {
+      stdio: 'inherit',
+      shell: true,
+      env: { ...process.env }
+    });
+
     // Track exit codes
     let kkdayExitCode = null;
     let klookExitCode = null;
+    let jpExitCode = null;
 
     kkdayProcess.on('exit', (code) => {
       kkdayExitCode = code;
@@ -44,6 +52,12 @@ const __dirname = path.dirname(__filename);
     klookProcess.on('exit', (code) => {
       klookExitCode = code;
       console.log(`\n🟧 Klook process exited with code: ${code}`);
+      checkAllComplete();
+    });
+
+    jpProcess.on('exit', (code) => {
+      jpExitCode = code;
+      console.log(`\n🟨 JP (JapanAllPass) process exited with code: ${code}`);
       checkAllComplete();
     });
 
@@ -59,17 +73,24 @@ const __dirname = path.dirname(__filename);
       checkAllComplete();
     });
 
+    jpProcess.on('error', (error) => {
+      console.error('❌ Error spawning JP process:', error);
+      jpExitCode = 1;
+      checkAllComplete();
+    });
+
     function checkAllComplete() {
-      if (kkdayExitCode !== null && klookExitCode !== null) {
+      if (kkdayExitCode !== null && klookExitCode !== null && jpExitCode !== null) {
         console.log('\n' + '='.repeat(60));
         console.log('📊 FINAL SUMMARY');
         console.log('='.repeat(60));
         console.log(`🟦 KKDay exit code: ${kkdayExitCode}`);
         console.log(`🟧 Klook exit code: ${klookExitCode}`);
+        console.log(`🟨 JP (JapanAllPass) exit code: ${jpExitCode}`);
         console.log('='.repeat(60));
         
         // Exit with error code if any process failed
-        const exitCode = (kkdayExitCode !== 0 || klookExitCode !== 0) ? 1 : 0;
+        const exitCode = (kkdayExitCode !== 0 || klookExitCode !== 0 || jpExitCode !== 0) ? 1 : 0;
         process.exit(exitCode);
       }
     }
