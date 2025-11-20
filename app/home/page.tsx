@@ -417,60 +417,71 @@ export default function HomePage() {
   const createPriceComparison = (product: any) => {
     const packages: any[] = []
 
-    if (product.packages_kkday) {
+    // จัดกลุ่ม packages ตาม day ก่อน
+    const groupedByDay: Record<string, { kkday: any[], klook: any[] }> = {}
+
+    // จัดกลุ่ม packages_kkday ตาม day
+    if (product.packages_kkday && Array.isArray(product.packages_kkday)) {
       product.packages_kkday.forEach((kkdayPkg: any) => {
-        const matchingKlookPkg = product.packages_klook?.find((klookPkg: any) =>
-          klookPkg.name === kkdayPkg.name
-        )
-
-        const japanAllPassPrice = kkdayPkg.priceJP || matchingKlookPkg?.priceJP || product.price_product
-
-        packages.push({
-          id: `${product._id}-${kkdayPkg.name}`,
-          name: kkdayPkg.name,
-          nameEn: kkdayPkg.name,
-          days: null,
-          region: "ทั่วประเทศ",
-          regionEn: "Nationwide",
-          adultPrice: true,
-          childPrice: true,
-          flexible: false,
-          onSale: false,
-          lastUpdated: null,
-          prices: {
-            klook: {
-              adult: matchingKlookPkg ? parsePrice(matchingKlookPkg.price) : null,
-              child: null,
-              url: product.url_klook,
-            },
-            kkday: {
-              adult: parsePrice(kkdayPkg.price),
-              child: null,
-              url: product.url_kkday,
-            },
-            japanAllPass: {
-              adult: parsePrice(japanAllPassPrice),
-              child: null,
-              url: `https://japanallpass.com/products/${product.no_product}`,
-            },
-          },
-        })
+        const day = kkdayPkg.day || "default"
+        if (!groupedByDay[day]) {
+          groupedByDay[day] = { kkday: [], klook: [] }
+        }
+        groupedByDay[day].kkday.push(kkdayPkg)
       })
     }
 
-    if (product.packages_klook) {
+    // จัดกลุ่ม packages_klook ตาม day
+    if (product.packages_klook && Array.isArray(product.packages_klook)) {
       product.packages_klook.forEach((klookPkg: any) => {
-        const hasMatchingKkday = product.packages_kkday?.some((kkdayPkg: any) =>
-          kkdayPkg.name === klookPkg.name
-        )
+        const day = klookPkg.day || "default"
+        if (!groupedByDay[day]) {
+          groupedByDay[day] = { kkday: [], klook: [] }
+        }
+        groupedByDay[day].klook.push(klookPkg)
+      })
+    }
 
-        if (!hasMatchingKkday) {
-          const japanAllPassPrice = klookPkg.priceJP || product.price_product
+    // สร้าง packages จากแต่ละ day
+    Object.entries(groupedByDay).forEach(([day, dayPackages]) => {
+      // หา Adult และ Child จากแต่ละ source (รองรับทั้งภาษาไทย "ผู้ใหญ่", "เด็ก" และภาษาอังกฤษ "Adult", "Child")
+      const kkdayAdult = dayPackages.kkday.find((pkg: any) => {
+        const name = (pkg.name || "").toLowerCase()
+        return (name.includes("adult") || name.includes("ผู้ใหญ่")) && !(name.includes("child") || name.includes("เด็ก"))
+      })
+      const kkdayChild = dayPackages.kkday.find((pkg: any) => {
+        const name = (pkg.name || "").toLowerCase()
+        return name.includes("child") || name.includes("เด็ก")
+      })
+      const klookAdult = dayPackages.klook.find((pkg: any) => {
+        const name = (pkg.name || "").toLowerCase()
+        return (name.includes("adult") || name.includes("ผู้ใหญ่")) && !(name.includes("child") || name.includes("เด็ก"))
+      })
+      const klookChild = dayPackages.klook.find((pkg: any) => {
+        const name = (pkg.name || "").toLowerCase()
+        return name.includes("child") || name.includes("เด็ก")
+      })
 
-          packages.push({
-            id: `${product._id}-${klookPkg.name}`,
-            name: klookPkg.name,
-            nameEn: klookPkg.name,
+      // สร้าง 2 packages (Adult และ Child) สำหรับ day นี้
+      const createPackage = (name: string, kkdayPkg: any | null, klookPkg: any | null) => {
+        // หา priceJP สำหรับทั้ง Adult และ Child (แต่ละ package ต้องมีทั้ง adult และ child price)
+        const japanAllPassPriceAdult = kkdayAdult?.priceJP || klookAdult?.priceJP || null
+        const japanAllPassPriceChild = kkdayChild?.priceJP || klookChild?.priceJP || null
+
+        // ตรวจสอบข้อมูลที่ถูกดึง
+        console.log(`📦 Creating package: ${name} for day: ${day}`)
+        console.log(`   Klook Adult:`, klookAdult)
+        console.log(`   Klook Child:`, klookChild)
+        console.log(`   KKday Adult:`, kkdayAdult)
+        console.log(`   KKday Child:`, kkdayChild)
+        console.log(`   JP Adult price:`, japanAllPassPriceAdult)
+        console.log(`   JP Child price:`, japanAllPassPriceChild)
+
+        const packageData = {
+          id: `${product._id}-${day}-${name}`,
+          name: name,
+          nameEn: name,
+          day: day,
             days: null,
             region: "ทั่วประเทศ",
             regionEn: "Nationwide",
@@ -481,25 +492,41 @@ export default function HomePage() {
             lastUpdated: null,
             prices: {
               klook: {
-                adult: parsePrice(klookPkg.price),
-                child: null,
+              adult: klookAdult ? parsePrice(klookAdult.price) : null,
+              child: klookChild ? parsePrice(klookChild.price) : null,
                 url: product.url_klook,
               },
               kkday: {
-                adult: null,
-                child: null,
+              adult: kkdayAdult ? parsePrice(kkdayAdult.price) : null,
+              child: kkdayChild ? parsePrice(kkdayChild.price) : null,
                 url: product.url_kkday,
               },
               japanAllPass: {
-                adult: parsePrice(japanAllPassPrice),
-                child: null,
+              adult: japanAllPassPriceAdult ? parsePrice(japanAllPassPriceAdult) : null,
+              child: japanAllPassPriceChild ? parsePrice(japanAllPassPriceChild) : null,
                 url: `https://japanallpass.com/products/${product.no_product}`,
               },
             },
-          })
         }
-      })
-    }
+
+        console.log(`   Final package prices:`, packageData.prices)
+        return packageData
+      }
+
+      // สร้าง package สำหรับ Adult (ถ้ามีข้อมูลอย่างน้อย 1 source)
+      if (kkdayAdult || klookAdult) {
+        // ใช้ชื่อจาก package ที่พบ (ถ้ามี) หรือใช้ "Adult" เป็นค่า default
+        const adultName = klookAdult?.name || kkdayAdult?.name || "Adult"
+        packages.push(createPackage(adultName, kkdayAdult, klookAdult))
+      }
+
+      // สร้าง package สำหรับ Child (ถ้ามีข้อมูลอย่างน้อย 1 source)
+      if (kkdayChild || klookChild) {
+        // ใช้ชื่อจาก package ที่พบ (ถ้ามี) หรือใช้ "Child" เป็นค่า default
+        const childName = klookChild?.name || kkdayChild?.name || "Child"
+        packages.push(createPackage(childName, kkdayChild, klookChild))
+      }
+    })
 
     return packages
   }
@@ -1019,8 +1046,34 @@ export default function HomePage() {
                   <div className="p-6">
                     <div className="space-y-4">
                       {packages.map((pkg: any, index: number) => {
-                        const bestProvider = getBestProvider(pkg.prices)
-                        const bestPrice = getBestPrice(pkg.prices)
+                        // ใช้ priceType ตาม pkg.name (รองรับทั้งภาษาไทย "ผู้ใหญ่", "เด็ก" และภาษาอังกฤษ "Adult", "Child")
+                        const pkgNameLower = (pkg.name || "").toLowerCase()
+                        const isAdult = (pkgNameLower.includes("adult") || pkgNameLower.includes("ผู้ใหญ่")) && !(pkgNameLower.includes("child") || pkgNameLower.includes("เด็ก"))
+                        const packagePriceType = isAdult ? "adult" : "child"
+                        
+                        // คำนวณ bestProvider และ bestPrice ตาม packagePriceType
+                        const getBestPriceForPackage = (prices: any) => {
+                          const priceValues = Object.values(prices).map((provider: any) => provider[packagePriceType])
+                          const validPrices = priceValues.filter((price) => isValidPrice(price)) as number[]
+                          return validPrices.length > 0 ? Math.min(...validPrices) : 0
+                        }
+
+                        const getBestProviderForPackage = (prices: any) => {
+                          const priceValues = Object.entries(prices).map(([provider, data]: [string, any]) => ({
+                            provider,
+                            price: data[packagePriceType],
+                          }))
+
+                          const validPrices = priceValues.filter((item) => isValidPrice(item.price)) as Array<{ provider: string; price: number }>
+
+                          if (validPrices.length === 0) return null
+
+                          validPrices.sort((a, b) => a.price - b.price)
+                          return validPrices[0].provider
+                        }
+
+                        const bestProvider = getBestProviderForPackage(pkg.prices)
+                        const bestPrice = getBestPriceForPackage(pkg.prices)
 
                         return (
                           <div key={`${product._id}-${index}`} className="border rounded-lg p-4 bg-gray-50">
@@ -1037,7 +1090,7 @@ export default function HomePage() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               {/* Klook */}
                               <div
-                                className={`border rounded-lg p-4 ${bestProvider === "klook" && isValidPrice(pkg.prices.klook[priceType]) ? "border-green-500 bg-green-50" : "border-gray-200"}`}
+                                className={`border rounded-lg p-4 ${bestProvider === "klook" && isValidPrice(pkg.prices.klook[packagePriceType]) ? "border-green-500 bg-green-50" : "border-gray-200"}`}
                               >
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
@@ -1046,16 +1099,16 @@ export default function HomePage() {
                                     </div>
                                     <span className="font-medium">Klook</span>
                                   </div>
-                                  {bestProvider === "klook" && isValidPrice(pkg.prices.klook[priceType]) && (
+                                  {bestProvider === "klook" && isValidPrice(pkg.prices.klook[packagePriceType]) && (
                                     <Badge variant="default" className="bg-green-500">
                                       ดีที่สุด
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="text-xl font-bold text-gray-900 mb-3">
-                                  {pkg.prices.klook[priceType] ? `฿${formatPrice(pkg.prices.klook[priceType])}` : "N/A"}
+                                  {pkg.prices.klook[packagePriceType] ? `฿${formatPrice(pkg.prices.klook[packagePriceType])}` : "N/A"}
                                 </div>
-                                <Button asChild className="w-full" variant={bestProvider === "klook" && isValidPrice(pkg.prices.klook[priceType]) ? "default" : "outline"}>
+                                <Button asChild className="w-full" variant={bestProvider === "klook" && isValidPrice(pkg.prices.klook[packagePriceType]) ? "default" : "outline"}>
                                   <a href={pkg.prices.klook.url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="h-4 w-4 mr-2" />
                                     ซื้อที่ Klook
@@ -1065,7 +1118,7 @@ export default function HomePage() {
 
                               {/* KKday */}
                               <div
-                                className={`border rounded-lg p-4 ${bestProvider === "kkday" && isValidPrice(pkg.prices.kkday[priceType]) ? "border-green-500 bg-green-50" : "border-gray-200"}`}
+                                className={`border rounded-lg p-4 ${bestProvider === "kkday" && isValidPrice(pkg.prices.kkday[packagePriceType]) ? "border-green-500 bg-green-50" : "border-gray-200"}`}
                               >
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
@@ -1074,16 +1127,16 @@ export default function HomePage() {
                                     </div>
                                     <span className="font-medium">KKday</span>
                                   </div>
-                                  {bestProvider === "kkday" && isValidPrice(pkg.prices.kkday[priceType]) && (
+                                  {bestProvider === "kkday" && isValidPrice(pkg.prices.kkday[packagePriceType]) && (
                                     <Badge variant="default" className="bg-green-500">
                                       ดีที่สุด
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="text-xl font-bold text-gray-900 mb-3">
-                                  {pkg.prices.kkday[priceType] ? `฿${formatPrice(pkg.prices.kkday[priceType])}` : "N/A"}
+                                  {pkg.prices.kkday[packagePriceType] ? `฿${formatPrice(pkg.prices.kkday[packagePriceType])}` : "N/A"}
                                 </div>
-                                <Button asChild className="w-full" variant={bestProvider === "kkday" && isValidPrice(pkg.prices.kkday[priceType]) ? "default" : "outline"}>
+                                <Button asChild className="w-full" variant={bestProvider === "kkday" && isValidPrice(pkg.prices.kkday[packagePriceType]) ? "default" : "outline"}>
                                   <a href={pkg.prices.kkday.url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="h-4 w-4 mr-2" />
                                     ซื้อที่ KKday
@@ -1093,7 +1146,7 @@ export default function HomePage() {
 
                               {/* JapanAllPass */}
                               <div
-                                className={`border rounded-lg p-4 ${bestProvider === "japanAllPass" && isValidPrice(pkg.prices.japanAllPass[priceType]) ? "border-green-500 bg-green-50" : "border-gray-200"}`}
+                                className={`border rounded-lg p-4 ${bestProvider === "japanAllPass" && isValidPrice(pkg.prices.japanAllPass[packagePriceType]) ? "border-green-500 bg-green-50" : "border-gray-200"}`}
                               >
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
@@ -1102,19 +1155,19 @@ export default function HomePage() {
                                     </div>
                                     <span className="font-medium">JapanAllPass</span>
                                   </div>
-                                  {bestProvider === "japanAllPass" && isValidPrice(pkg.prices.japanAllPass[priceType]) && (
+                                  {bestProvider === "japanAllPass" && isValidPrice(pkg.prices.japanAllPass[packagePriceType]) && (
                                     <Badge variant="default" className="bg-green-500">
                                       ดีที่สุด
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="text-xl font-bold text-gray-900 mb-3">
-                                  {pkg.prices.japanAllPass[priceType] ? `฿${formatPrice(pkg.prices.japanAllPass[priceType])}` : "N/A"}
+                                  {pkg.prices.japanAllPass[packagePriceType] ? `฿${formatPrice(pkg.prices.japanAllPass[packagePriceType])}` : "N/A"}
                                 </div>
                                 <Button
                                   asChild
                                   className="w-full"
-                                  variant={bestProvider === "japanAllPass" && isValidPrice(pkg.prices.japanAllPass[priceType]) ? "default" : "outline"}
+                                  variant={bestProvider === "japanAllPass" && isValidPrice(pkg.prices.japanAllPass[packagePriceType]) ? "default" : "outline"}
                                 >
                                   <a href={pkg.prices.japanAllPass.url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="h-4 w-4 mr-2" />

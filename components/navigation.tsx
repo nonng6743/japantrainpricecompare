@@ -6,12 +6,13 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, Zap, Home, Package, LogIn, LogOut, User, TrendingUp, Clock } from "lucide-react"
+import { Menu, Zap, Home, Package, LogIn, LogOut, User, TrendingUp, Clock, TrendingDown } from "lucide-react"
 
 const navigation = [
   { name: "หน้าหลัก", href: "/", icon: Home },
   { name: "สินค้าจาก API", href: "/products", icon: Package },
   { name: "ประวัติราคา", href: "/price-log", icon: Clock },
+  { name: "ประวัติส่วนลด", href: "/discount-log", icon: TrendingDown },
   { name: "เทียมราคา", href: "/addCompare", icon: TrendingUp },
 ]
 
@@ -33,13 +34,15 @@ export function Navigation() {
       setIsLoggedIn(true)
       try {
         const userData = JSON.parse(user)
+        // กรอง lineUserId ออกก่อนแสดง
+        const { lineUserId, ...userWithoutLineUserId } = userData
         // ใช้ firstName และ lastName หรือ username ถ้าไม่มี
-        setUserName(userData.firstName && userData.lastName 
-          ? `${userData.firstName} ${userData.lastName}`
-          : userData.username || userData.email || 'ผู้ใช้'
+        setUserName(userWithoutLineUserId.firstName && userWithoutLineUserId.lastName 
+          ? `${userWithoutLineUserId.firstName} ${userWithoutLineUserId.lastName}`
+          : userWithoutLineUserId.username || userWithoutLineUserId.email || 'ผู้ใช้'
         )
-        console.log('userData.role'+userData.role)
-        setUserRole(userData.role || '')
+        console.log('userData.role'+userWithoutLineUserId.role)
+        setUserRole(userWithoutLineUserId.role || '')
       } catch (error) {
         console.error('Error parsing user data:', error)
         setUserName('ผู้ใช้')

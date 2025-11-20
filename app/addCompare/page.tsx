@@ -51,15 +51,125 @@ export default function ContactPage() {
   const [backendKkdayRequestBody, setBackendKkdayRequestBody] = useState<string>('{"prodMid":"151309"}')
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
+  // ฟังก์ชัน transform plans จาก response (รองรับ comboJTR)
+  const transformPlansFromResponse = (responseData: any) => {
+    if (!responseData) return []
+
+    const rawItems = Array.isArray(responseData)
+      ? responseData
+      : Array.isArray(responseData?.data)
+        ? responseData.data
+        : []
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return []
+    }
+
+    const groupedByParams = rawItems.reduce<Record<string, any[]>>((acc, item) => {
+      const key = item?.product_params || ""
+      if (!acc[key]) acc[key] = []
+      acc[key].push(item)
+      return acc
+    }, {})
+
+    // แยก comboJTR และ jtr items
+    const comboJTRItems = rawItems.filter((item) => item?.source === "comboJTR")
+    const jtrItems = rawItems.filter((item) => item?.source === "jtr" && Array.isArray(item?.products_plans) && item.products_plans.length > 0)
+
+    const allPlans: any[] = []
+
+    // จัดการ jtr items - ใช้ logic เหมือน comboJTR (ดึงจาก relatedItems) แต่ราคาใช้แค่ตัวแรก
+    if (jtrItems.length > 0) {
+      jtrItems.forEach((jtrItem) => {
+        if (Array.isArray(jtrItem.products_plans) && jtrItem.products_plans.length > 0) {
+          // หา relatedItems (ถ้ามี)
+          const relatedItems = (groupedByParams[jtrItem.product_params] || []).filter(
+            (item) => item !== jtrItem && Array.isArray(item?.products_plans) && item.products_plans.length > 0
+          )
+
+          const firstRelatedPlan = relatedItems.length > 0 ? relatedItems[0].products_plans[0] : null
+
+          // ใช้แค่ products_plans[0] ตัวแรกเท่านั้น (ราคาเดียว)
+          const firstPlan = jtrItem.products_plans[0]
+          
+          if (firstPlan) {
+            allPlans.push({
+              products_plans_id: firstPlan.products_plans_id ?? jtrItem.products_id ?? firstRelatedPlan?.products_plans_id ?? null,
+              name: jtrItem.product_name || firstPlan.name || "", // ใช้ product_name ก่อน (เช่น "บัตร JR Sapporo-Furano Area Pass 4 Days (เด็ก 6-11 ปี)")
+              day: firstPlan.day || jtrItem.detail || firstRelatedPlan?.day || "",
+              initial_price: firstPlan.initial_price || null, // ใช้ราคาจากตัวแรกเท่านั้น
+              source: jtrItem.source || "jtr",
+              product_params: jtrItem.product_params || null,
+              combo: false,
+              product_name: jtrItem.product_name || "",
+            })
+          }
+        }
+      })
+    }
+
+    // จัดการ comboJTR items - ใช้ราคาของตัวเองเป็นหลัก
+    if (comboJTRItems.length > 0) {
+      const comboPlans = comboJTRItems
+        .map((comboItem) => {
+          const relatedItems = (groupedByParams[comboItem.product_params] || []).filter(
+            (item) => item !== comboItem && Array.isArray(item?.products_plans) && item.products_plans.length > 0
+          )
+
+          const firstRelatedPlan = relatedItems.length > 0 ? relatedItems[0].products_plans[0] : null
+
+          // ใช้ราคาของ comboJTR item เองก่อน (ไม่ดึงจาก relatedItems)
+          return {
+            products_plans_id: comboItem.products_id ?? firstRelatedPlan?.products_plans_id ?? null,
+            name: comboItem.product_name || comboItem.product_params || "",
+            day: comboItem.detail || comboItem.product_params || firstRelatedPlan?.day || comboItem.product_name || "",
+            // ใช้ราคาของตัวเองก่อน (initial_price หรือ product_price) แล้วค่อย fallback ไปหา relatedItems
+            initial_price: comboItem.initial_price || comboItem.product_price || firstRelatedPlan?.initial_price || null,
+            source: comboItem.source || null,
+            product_params: comboItem.product_params || null,
+            combo: true,
+            related_plan_id: firstRelatedPlan?.products_plans_id ?? null,
+            product_name: comboItem.product_name || "",
+          }
+        })
+        .filter((plan) => plan.initial_price !== null)
+
+      allPlans.push(...comboPlans)
+    }
+
+    // ถ้ามี plans แล้ว return
+    if (allPlans.length > 0) {
+      return allPlans
+    }
+
+    // Fallback: หา item ที่มี products_plans
+    const itemWithPlans = rawItems.find(
+      (item) => Array.isArray(item?.products_plans) && item.products_plans.length > 0
+    )
+
+    return itemWithPlans?.products_plans ?? []
+  }
+
   // ฟังก์ชันดึงข้อมูล products_plans
   const fetchProductsPlans = async (productId: string) => {
     try {
       const response = await fetch(`https://api.japanallpass.com/api/products/product_read_paramiter?product_params=${productId}`);
       const data = await response.json();
 
-      if (data.success && data.data && data.data.products_plans) {
-        setProductsPlans(data.data.products_plans);
-        console.log("📦 Products Plans:", data.data.products_plans);
+      // แสดง JSON response ทั้งหมด
+      console.log("📥 API Response JSON:", JSON.stringify(data, null, 2));
+      console.log("📦 Raw Data:", data.data);
+
+      if (data.success && data.data) {
+        // ใช้ transformPlansFromResponse เพื่อรองรับ comboJTR
+        const transformedPlans = transformPlansFromResponse(data.data);
+        setProductsPlans(transformedPlans);
+        console.log("📦 Transformed Products Plans:", transformedPlans);
+      } else if (data.success && data.data?.products_plans) {
+        // Fallback: ถ้ามี products_plans โดยตรง
+        const transformedPlans = transformPlansFromResponse(data.data.products_plans);
+        setProductsPlans(transformedPlans);
+        console.log("📦 Products Plans (fallback):", transformedPlans);
       }
     } catch (error) {
       console.error("❌ Error fetching products plans:", error);
@@ -312,6 +422,10 @@ export default function ContactPage() {
 
       const data = await response.json();
 
+      // แสดง JSON response ทั้งหมด
+      console.log("📥 Search API Response JSON:", JSON.stringify(data, null, 2));
+      console.log("📦 Search Raw Data:", data.data);
+
       if (!response.ok) {
         alert(`เกิดข้อผิดพลาด (${response.status}): ${data.error || 'ไม่ทราบสาเหตุ'}`);
         return;
@@ -325,13 +439,21 @@ export default function ContactPage() {
           setPriceProduct(product.product_price);
           setNameProduct(product.product_name);
 
-          // ดึงข้อมูล products_plans
-          if (product.products_plans) {
-            setProductsPlans(product.products_plans);
-            console.log("📦 Products Plans:", product.products_plans);
+          // ดึงข้อมูล products_plans และรองรับ comboJTR
+          if (data.data) {
+            const transformedPlans = transformPlansFromResponse(data.data);
+            setProductsPlans(transformedPlans);
+            console.log("📦 Transformed Products Plans (from search):", transformedPlans);
 
             // เติมราคา JP ให้ช่องที่มีชื่อและวันตรงกันทันทีหลังค้นหา
-            autoFillPricesFromPlans(product.products_plans);
+            autoFillPricesFromPlans(transformedPlans);
+          } else if (product.products_plans) {
+            const transformedPlans = transformPlansFromResponse(product.products_plans);
+            setProductsPlans(transformedPlans);
+            console.log("📦 Products Plans (fallback):", transformedPlans);
+
+            // เติมราคา JP ให้ช่องที่มีชื่อและวันตรงกันทันทีหลังค้นหา
+            autoFillPricesFromPlans(transformedPlans);
           }
 
         } else {
