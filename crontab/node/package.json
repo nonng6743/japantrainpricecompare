@@ -1,0 +1,22 @@
+{
+  "name": "klook-scraper",
+  "version": "1.0.0",
+  "description": "Klook API scraper for Japan train price comparison",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["scraper", "klook", "api", "japan", "train"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.12.2",
+    "puppeteer": "^24.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
