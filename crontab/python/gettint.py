@@ -75,17 +75,12 @@ def scrape_klook_and_capture_headers():
     
     # Configure Chrome options for Ubuntu 24.04.3 LTS
     chrome_options = Options()
-    # Headless mode for Ubuntu server
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
-    chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36')
     # Set Chrome binary path if found
     if chrome_path:
         chrome_options.binary_location = chrome_path
@@ -95,6 +90,7 @@ def scrape_klook_and_capture_headers():
     
     driver = None
     captured_headers = None
+    captured_request = None
     
     try:
         print(f"\n⏳ Initializing browser...")
@@ -304,26 +300,59 @@ def scrape_klook_and_capture_headers():
                             if target_api_url in request_url:
                                 request_headers = request_data.get('headers', {})
                                 request_method = request_data.get('method', 'N/A')
+                                post_data = request_data.get('postData', '')
                                 
                                 captured_headers = request_headers
                                 
-                                print("\n" + "=" * 80)
-                                print("🎯 API REQUEST CAPTURED!")
-                                print("=" * 80)
-                                print(f"\n📍 Request URL:")
-                                print(f"   {request_url}")
-                                print(f"\n🔧 HTTP Method:")
-                                print(f"   {request_method}")
-                                print(f"\n📤 Request Headers ({len(request_headers)} headers):")
-                                print("-" * 80)
+                                # Create captured request object with all details
+                                captured_request = {
+                                    'url': request_url,
+                                    'method': request_method,
+                                    'headers': request_headers,
+                                    'postData': post_data,
+                                    'timestamp': datetime.now().isoformat()
+                                }
                                 
-                                # Print all headers
+                                print(f"\n{'='*80}")
+                                print(f"🎯 TARGET API REQUEST CAPTURED!")
+                                print(f"{'='*80}")
+                                print(f"\n📍 URL:")
+                                print(f"   {request_url}")
+                                print(f"\n🔧 Method:")
+                                print(f"   {request_method}")
+                                print(f"\n📤 Headers: {len(request_headers)} headers captured")
+                                print(f"{'-'*80}")
+                                
+                                # Display headers, filtering sensitive ones
+                                sensitive_headers = ['cookie', 'authorization', 'x-api-key', 'x-auth-token', 'x-csrf-token']
+                                displayed_count = 0
+                                
                                 for key, value in request_headers.items():
+                                    # Skip sensitive headers in display (but keep in captured_request)
+                                    if key.lower() in sensitive_headers:
+                                        continue
+                                    
                                     # Truncate very long values for display
                                     display_value = str(value)
-                                    if len(display_value) > 200:
-                                        display_value = display_value[:200] + "... (truncated)"
+                                    if len(display_value) > 150:
+                                        display_value = display_value[:150] + "..."
                                     print(f"   {key}: {display_value}")
+                                    displayed_count += 1
+                                
+                                # Show count of filtered headers
+                                filtered_count = len(request_headers) - displayed_count
+                                if filtered_count > 0:
+                                    print(f"\n   ⚠️  {filtered_count} sensitive header(s) hidden (cookie, authorization, etc.)")
+                                    print(f"   (Full headers saved in JSON output)")
+                                
+                                if post_data:
+                                    print(f"\n📦 Request Body (Post Data):")
+                                    try:
+                                        # Try to parse as JSON for better display
+                                        post_data_json = json.loads(post_data)
+                                        print(f"   {json.dumps(post_data_json, indent=2, ensure_ascii=False)}")
+                                    except:
+                                        print(f"   {post_data[:500]}")  # Show first 500 chars
                                 
                                 print("=" * 80)
                                 
@@ -344,13 +373,10 @@ def scrape_klook_and_capture_headers():
         
         if not found_request:
             print(f"\n⚠️  No request to {target_api_url} was captured within {max_wait_time} seconds")
-            print("   The API request might not have been triggered yet.")
-            print("   Try:")
-            print("   - Interacting with the page more (select dates, options, etc.)")
-            print("   - Checking if the API endpoint is called on page load")
-            print("   - Increasing the wait time")
+            print("   The request might not have been triggered yet")
+            print("   Try interacting with the page more (select dates, options, quantity, etc.)")
         else:
-            print(f"\n✅ Successfully captured API headers!")
+            print(f"\n✅ Successfully captured API request!")
             
             # Save headers to JSON file
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -358,16 +384,24 @@ def scrape_klook_and_capture_headers():
             result = {
                 'api_url': target_api_url,
                 'activity_url': activity_url,
-                'captured_at': datetime.now().isoformat(),
-                'headers': captured_headers
+                'scraped_at': datetime.now().isoformat(),
+                'captured_api_request': captured_request
             }
             
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
             
-            print(f"💾 Headers saved to: {output_file}")
+            print(f"💾 Results saved to: {output_file}")
+            print(f"\n📊 Summary:")
+            if captured_request:
+                print(f"   - API request captured: ✅")
+                print(f"     URL: {captured_request.get('url', 'N/A')[:80]}...")
+                print(f"     Method: {captured_request.get('method', 'N/A')}")
+                print(f"     Headers count: {len(captured_request.get('headers', {}))}")
+                if captured_request.get('postData'):
+                    print(f"     Has request body: ✅")
         
-        return captured_headers
+        return captured_request if captured_request else captured_headers
         
     except Exception as e:
         print(f"\n❌ Error occurred: {str(e)}")
