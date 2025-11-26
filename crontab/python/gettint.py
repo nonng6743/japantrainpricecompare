@@ -49,7 +49,7 @@ def scrape_klook_activity():
         print(f"📍 URL: {url}")
         
         # Initialize WebDriver
-        service = Service(ChromeDriverManager().install())
+        service = Service(ChromeDriverManager(driver_version="141.0.7390.78").install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
         print("🌐 Opening browser...")
