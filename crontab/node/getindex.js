@@ -1,8 +1,7 @@
 const puppeteer = require("puppeteer-core");
 const fs = require("fs");
-const path = require("path");
 
-const CHROME_PATH = "/usr/bin/google-chrome"; // <== เปลี่ยนถ้าใช้ chromium-browser
+const CHROME_PATH = "/usr/bin/google-chrome";
 
 const LINUX_CHROME_ARGS = [
     '--no-sandbox',
@@ -13,6 +12,10 @@ const LINUX_CHROME_ARGS = [
     '--no-zygote',
     '--single-process'
 ];
+
+async function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 async function captureFullHeaders(targetApiUrl) {
     console.log("🚀 Start capturing FULL HEADERS...\n");
@@ -30,33 +33,39 @@ async function captureFullHeaders(targetApiUrl) {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
     );
 
-    // เปิด Client Hints
     await page.setExtraHTTPHeaders({
         "accept-language": "en_US,en;q=0.9",
+        "currency": "THB",   // ⭐ บังคับ Currency เป็น THB
         "sec-ch-ua": "\"Chromium\";v=\"142\", \"Google Chrome\";v=\"142\", \"Not A Brand\";v=\"99\"",
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": "\"macOS\""
     });
 
-    // เปิด CDP
     const cdp = await page.target().createCDPSession();
     await cdp.send("Network.enable");
 
     let capturedHeaders = null;
 
-    // ดักทุก request (เหมือน Chrome DevTools → Network)
     cdp.on("Network.requestWillBeSent", (params) => {
         const url = params.request.url;
 
         if (url.includes(targetApiUrl)) {
             console.log("🔥 FOUND TARGET REQUEST FULL HEADERS!");
-            console.log(JSON.stringify(params.request.headers, null, 2));
 
-            capturedHeaders = params.request.headers;
+            let h = params.request.headers;
 
-            const file = "FULL_REQUEST_HEADERS.json";
-            fs.writeFileSync(file, JSON.stringify(params.request.headers, null, 2));
-            console.log(`📁 Saved to ${file}\n`);
+            // ⭐ FIX HERE: เปลี่ยน USD → THB ก่อนบันทึก
+            if (h["Currency"] === "USD") {
+                h["Currency"] = "THB";
+                console.log("🔄 FIXED Currency USD → THB");
+            }
+
+            console.log(JSON.stringify(h, null, 2));
+
+            capturedHeaders = h;
+
+            fs.writeFileSync("FULL_REQUEST_HEADERS.json", JSON.stringify(h, null, 2));
+            console.log(`📁 Saved to FULL_REQUEST_HEADERS.json\n`);
         }
     });
 
@@ -66,14 +75,18 @@ async function captureFullHeaders(targetApiUrl) {
         timeout: 60000
     });
 
-    await page.waitForTimeout(2000);
+    await delay(2000);
 
     console.log("🌐 Triggering API request...");
     await page.evaluate(async (url) => {
-        await fetch(url, { method: "GET", credentials: "include" });
+        await fetch(url, {
+            method: "GET",
+            credentials: "include",
+            headers: { "currency": "THB" } // ⭐ Force THB ใน fetch
+        });
     }, targetApiUrl);
 
-    await page.waitForTimeout(3000);
+    await delay(3000);
 
     await browser.close();
     console.log("🔒 Browser closed.");
