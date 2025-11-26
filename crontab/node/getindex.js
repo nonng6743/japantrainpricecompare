@@ -14,14 +14,12 @@ async function captureApiHeaders(activityUrl, targetApiUrl) {
         console.log("🚀 เริ่มต้นดักจับ API headers...\n");
         
         browser = await puppeteer.launch({
-            headless: true, // ใช้ headless mode สำหรับ server (ไม่มี X server)
+            headless: false, // เปิด browser เพื่อดูการทำงาน
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                '--disable-blink-features=AutomationControlled',
-                '--disable-gpu',
-                '--disable-software-rasterizer'
+                '--disable-blink-features=AutomationControlled'
             ]
         });
 
@@ -158,7 +156,7 @@ async function captureApiHeaders(activityUrl, targetApiUrl) {
         console.log("🔍 กำลังค้นหาปุ่มแรก (language/currency selector)...");
         console.log("=".repeat(80));
         try {
-            const firstButtonXpath = '//*[@id="__layout"]/div/header/div/nav/div[2]/div[2]/div[1]';
+            const firstButtonXpath = '//*[@id="__layout"]/div/header/div/nav/div[2]/div[2]/div[1]/a';
             
             console.log("   กำลังรอให้ปุ่มปรากฏ (timeout: 10 วินาที)...");
             await page.waitForXPath(firstButtonXpath, { timeout: 10000 });
