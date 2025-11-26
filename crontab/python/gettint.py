@@ -2,41 +2,6 @@
 """
 Klook Web Scraper for JR East Tokyo Wide Pass
 Scrapes price information from Klook activity page using browser automation
-
-Optimized for Ubuntu 24.04.3 LTS (GNU/Linux 6.14.0-1011-aws x86_64)
-
-Required system dependencies on Ubuntu:
-    sudo apt-get update
-    sudo apt-get install -y \
-        chromium-browser \
-        chromium-chromedriver \
-        python3-pip \
-        python3-selenium \
-        xvfb \
-        fonts-liberation \
-        libasound2 \
-        libatk-bridge2.0-0 \
-        libatk1.0-0 \
-        libatspi2.0-0 \
-        libcups2 \
-        libdbus-1-3 \
-        libdrm2 \
-        libgbm1 \
-        libgtk-3-0 \
-        libnspr4 \
-        libnss3 \
-        libxcomposite1 \
-        libxdamage1 \
-        libxfixes3 \
-        libxkbcommon0 \
-        libxrandr2 \
-        xdg-utils
-
-Or use Chrome instead of Chromium:
-    wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-    sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-    sudo apt-get update
-    sudo apt-get install -y google-chrome-stable
 """
 
 from selenium import webdriver
@@ -46,201 +11,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.os_manager import ChromeType
 import time
 import json
-import subprocess
-import re
-import requests
-import zipfile
-import os
-import shutil
 from datetime import datetime
-
-def get_chrome_binary_path():
-    """
-    Get the installed Chrome binary path by checking common locations
-    Returns the path (e.g., '/usr/local/bin/chrome') or None if not found
-    """
-    chrome_paths = [
-        '/usr/local/bin/chrome',
-        '/usr/bin/google-chrome',
-        '/usr/bin/google-chrome-stable',
-        '/usr/bin/chromium-browser',
-        '/usr/bin/chromium',
-    ]
-    
-    for chrome_path in chrome_paths:
-        try:
-            result = subprocess.run(
-                [chrome_path, '--version'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                # Extract version number for display
-                version_match = re.search(r'(\d+\.\d+\.\d+\.\d+)', result.stdout)
-                if version_match:
-                    print(f"   Found Chrome: {chrome_path} (version: {version_match.group(1)})")
-                    return chrome_path
-        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-            continue
-    
-    return None
-
-def get_chrome_version():
-    """
-    Get the installed Chrome version by checking common binary paths
-    Returns the full version string (e.g., "141.0.7390.78") or None if not found
-    """
-    chrome_path = get_chrome_binary_path()
-    if chrome_path:
-        try:
-            result = subprocess.run(
-                [chrome_path, '--version'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                # Extract full version number (e.g., "Google Chrome 141.0.7390.78" -> "141.0.7390.78")
-                version_match = re.search(r'(\d+\.\d+\.\d+\.\d+)', result.stdout)
-                if version_match:
-                    return version_match.group(1)
-        except Exception:
-            pass
-    
-    return None
-
-def get_chrome_major_version():
-    """
-    Get the major Chrome version number (e.g., 141)
-    """
-    full_version = get_chrome_version()
-    if full_version:
-        return int(full_version.split('.')[0])
-    return None
-
-def download_chromedriver_for_version(chrome_version):
-    """
-    Download ChromeDriver for a specific Chrome version using Chrome for Testing API
-    Returns the path to the chromedriver binary
-    """
-    major_version = chrome_version.split('.')[0]
-    print(f"   Attempting to download ChromeDriver for Chrome {chrome_version}...")
-    
-    # Try to find matching version from Chrome for Testing
-    try:
-        # Get known good versions
-        versions_url = "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json"
-        response = requests.get(versions_url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            versions = data.get('versions', [])
-            
-            # Find version that matches our Chrome version
-            matching_version = None
-            for version_info in reversed(versions):  # Start from latest
-                version_str = version_info.get('version', '')
-                if version_str.startswith(major_version + '.'):
-                    # Check if it has Linux chromedriver download
-                    downloads = version_info.get('downloads', {})
-                    chromedriver_downloads = downloads.get('chromedriver', [])
-                    for download in chromedriver_downloads:
-                        if download.get('platform') == 'linux64':
-                            matching_version = version_str
-                            download_url = download.get('url')
-                            break
-                    if matching_version:
-                        break
-            
-            if matching_version and download_url:
-                print(f"   Found matching ChromeDriver version: {matching_version}")
-                # Download to temp directory
-                import tempfile
-                temp_dir = tempfile.mkdtemp()
-                zip_path = os.path.join(temp_dir, 'chromedriver.zip')
-                
-                print(f"   Downloading from: {download_url}")
-                response = requests.get(download_url, timeout=30)
-                if response.status_code == 200:
-                    with open(zip_path, 'wb') as f:
-                        f.write(response.content)
-                    
-                    # Extract zip
-                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                        zip_ref.extractall(temp_dir)
-                    
-                    # Find chromedriver binary
-                    for root, dirs, files in os.walk(temp_dir):
-                        for file in files:
-                            if file == 'chromedriver':
-                                chromedriver_path = os.path.join(root, file)
-                                # Make it executable
-                                os.chmod(chromedriver_path, 0o755)
-                                print(f"   ✅ ChromeDriver downloaded: {chromedriver_path}")
-                                return chromedriver_path
-    except Exception as e:
-        print(f"   ⚠️  Failed to download from Chrome for Testing: {e}")
-    
-    return None
-
-def setup_chrome_driver(chrome_binary_path=None):
-    """
-    Setup ChromeDriver with version matching the installed Chrome
-    First tries ChromeDriverManager, then falls back to direct download if version mismatch
-    """
-    print("📦 Setting up ChromeDriver...")
-    
-    # Get Chrome binary path if not provided
-    if not chrome_binary_path:
-        chrome_binary_path = get_chrome_binary_path()
-    
-    # Get Chrome version
-    chrome_version = get_chrome_version()
-    if chrome_version:
-        print(f"   Chrome version detected: {chrome_version}")
-    
-    # First try: Use ChromeDriverManager (should auto-detect)
-    try:
-        print("   Trying ChromeDriverManager (auto-detect)...")
-        driver_path = ChromeDriverManager().install()
-        print(f"   ✅ ChromeDriver installed: {driver_path}")
-        return Service(driver_path), chrome_binary_path
-    except Exception as auto_error:
-        error_msg = str(auto_error)
-        print(f"   ⚠️  ChromeDriverManager failed: {error_msg}")
-        
-        # Check if it's a version mismatch error
-        is_version_mismatch = (
-            "version" in error_msg.lower() or 
-            "supports Chrome version" in error_msg or
-            "session not created" in error_msg.lower()
-        )
-        
-        if is_version_mismatch and chrome_version:
-            print("   🔄 Version mismatch detected, trying to download matching ChromeDriver...")
-            # Second try: Download matching ChromeDriver directly
-            try:
-                driver_path = download_chromedriver_for_version(chrome_version)
-                if driver_path and os.path.exists(driver_path):
-                    print(f"   ✅ ChromeDriver downloaded and ready: {driver_path}")
-                    return Service(driver_path), chrome_binary_path
-            except Exception as download_error:
-                print(f"   ⚠️  Direct download also failed: {download_error}")
-        
-        # If all else fails, provide guidance
-        print(f"\n   ❌ ChromeDriver setup failed completely")
-        print("   💡 Troubleshooting:")
-        print("   1. Try updating Chrome to the latest version")
-        if chrome_version:
-            print(f"   2. Your Chrome version: {chrome_version}")
-            print(f"   3. Manually download matching ChromeDriver from:")
-            print(f"      https://googlechromelabs.github.io/chrome-for-testing/")
-            print(f"   4. Extract and place chromedriver in PATH or specify path")
-        
-        raise
 
 def scrape_klook_activity():
     """
@@ -249,43 +22,17 @@ def scrape_klook_activity():
     """
     url = "https://www.klook.com/activity/49927-jr-east-tokyo-tokyowidepass/?spm=Home.Popular%3Aany%3A%3APopularActivities%3ACard_LIST&clickId=3f5fba6719"
     
-    # Configure Chrome options for Ubuntu/Linux server environment
+    # Configure Chrome options - NOT headless to open browser
     chrome_options = Options()
-    
-    # Enable headless mode for server environments (Ubuntu 24.04.3 LTS)
-    chrome_options.add_argument('--headless=new')  # Use new headless mode
-    chrome_options.add_argument('--no-sandbox')  # Required for running as root or in containers
-    chrome_options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
-    chrome_options.add_argument('--disable-gpu')  # Disable GPU hardware acceleration
-    chrome_options.add_argument('--disable-software-rasterizer')  # Disable software rasterizer
-    chrome_options.add_argument('--disable-extensions')  # Disable extensions
-    chrome_options.add_argument('--disable-background-timer-throttling')  # Disable background throttling
-    chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-    chrome_options.add_argument('--disable-renderer-backgrounding')
-    chrome_options.add_argument('--disable-features=TranslateUI')  # Disable translation UI
-    chrome_options.add_argument('--disable-ipc-flooding-protection')  # Disable IPC flooding protection
-    
-    # Anti-detection options
+    # Remove headless mode to open browser
+    # chrome_options.add_argument('--headless')  # Commented out to show browser
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
-    
-    # Window and display settings
     chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--start-maximized')
-    
-    # Linux user agent for Ubuntu 24.04.3 LTS
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36')
-    
-    # Additional options for headless/server environments
-    chrome_options.add_argument('--remote-debugging-port=9222')  # Enable remote debugging
-    chrome_options.add_argument('--single-process')  # Run in single process mode (optional, may help with stability)
-    
-    # Set Chrome binary location if found
-    chrome_binary_path = get_chrome_binary_path()
-    if chrome_binary_path:
-        chrome_options.binary_location = chrome_binary_path
-        print(f"   Using Chrome binary: {chrome_binary_path}")
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36')
     
     # Enable performance logging to capture network requests
     chrome_options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
@@ -295,40 +42,14 @@ def scrape_klook_activity():
     target_url = "https://www.klook.com/v3/userserv/user/profile_service/get_simple_profile_by_token"
     
     try:
-        import platform
-        import os
-        
-        # Detect environment
-        system_info = platform.system()
-        platform_info = platform.platform()
         print(f"🚀 Starting browser scraper for Klook activity...")
-        print(f"🖥️  Running on: {system_info} - {platform_info}")
         print(f"📍 URL: {url}")
-        print(f"🌐 Headless mode: Enabled (server environment)")
         
-        # Initialize WebDriver with version matching
-        try:
-            service, chrome_binary = setup_chrome_driver()
-            # Ensure binary location is set in options
-            if chrome_binary and not chrome_options.binary_location:
-                chrome_options.binary_location = chrome_binary
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-        except Exception as driver_error:
-            print(f"❌ Error initializing ChromeDriver: {driver_error}")
-            print("\n💡 Troubleshooting tips:")
-            print("   1. Make sure Chrome/Chromium is installed:")
-            print("      sudo apt-get install -y chromium-browser chromium-chromedriver")
-            print("   2. Or install Google Chrome:")
-            print("      wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -")
-            print("      sudo sh -c 'echo \"deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main\" >> /etc/apt/sources.list.d/google-chrome.list'")
-            print("      sudo apt-get update && sudo apt-get install -y google-chrome-stable")
-            print("   3. Check if ChromeDriverManager can access the internet to download drivers")
-            print("   4. If version mismatch persists, try manually installing ChromeDriver:")
-            print("      - Check Chrome version: /usr/local/bin/chrome --version")
-            print("      - Download matching ChromeDriver from: https://googlechromelabs.github.io/chrome-for-testing/")
-            raise
+        # Initialize WebDriver
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         
-        print("🌐 Opening browser (headless mode)...")
+        print("🌐 Opening browser...")
         # Navigate to URL
         driver.get(url)
         
@@ -615,9 +336,9 @@ def scrape_klook_activity():
         else:
             print(f"   - API request captured: ❌")
         
-        # Small delay before closing (headless mode, no visual browser)
-        print("\n⏸️  Finalizing...")
-        time.sleep(1)
+        # Keep browser open for a few seconds to see the page
+        print("\n⏸️  Keeping browser open for 5 seconds...")
+        time.sleep(5)
         
         return result
         
