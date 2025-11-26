@@ -14,7 +14,8 @@ async function captureApiHeaders(activityUrl, targetApiUrl) {
         console.log("🚀 เริ่มต้นดักจับ API headers...\n");
         
         browser = await puppeteer.launch({
-            headless: false, // เปิด browser เพื่อดูการทำงาน
+            headless: "new",// เปิด browser เพื่อดูการทำงาน
+            executablePath: "/usr/bin/google-chrome",
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
