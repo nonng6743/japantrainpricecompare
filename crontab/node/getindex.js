@@ -14,12 +14,14 @@ async function captureApiHeaders(activityUrl, targetApiUrl) {
         console.log("🚀 เริ่มต้นดักจับ API headers...\n");
         
         browser = await puppeteer.launch({
-            headless: false, // เปิด browser เพื่อดูการทำงาน
+            headless: true, // ใช้ headless mode สำหรับ server (ไม่มี X server)
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
-                '--disable-blink-features=AutomationControlled'
+                '--disable-blink-features=AutomationControlled',
+                '--disable-gpu',
+                '--disable-software-rasterizer'
             ]
         });
 
