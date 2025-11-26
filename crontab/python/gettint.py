@@ -21,6 +21,7 @@ import os
 import requests
 import zipfile
 import shutil
+import tempfile
 from datetime import datetime
 
 def get_chrome_version():
@@ -75,12 +76,23 @@ def scrape_klook_and_capture_headers():
     
     # Configure Chrome options for Ubuntu 24.04.3 LTS
     chrome_options = Options()
-    chrome_options.add_argument('--disable-dev-shm-usage')
+    # Headless mode for Ubuntu server (required)
+    chrome_options.add_argument('--headless=new')  # Use new headless mode
+    chrome_options.add_argument('--no-sandbox')  # Required for Ubuntu server
+    chrome_options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
+    chrome_options.add_argument('--disable-gpu')  # Required for headless mode
+    chrome_options.add_argument('--disable-software-rasterizer')  # Additional stability
+    chrome_options.add_argument('--disable-extensions')  # Disable extensions
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
     chrome_options.add_argument('--window-size=1920,1080')
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36')
+    
+    # Add unique user-data-dir to avoid "user data directory is already in use" error
+    user_data_dir = tempfile.mkdtemp(prefix='chrome_user_data_')
+    chrome_options.add_argument(f'--user-data-dir={user_data_dir}')
+    
     # Set Chrome binary path if found
     if chrome_path:
         chrome_options.binary_location = chrome_path
@@ -91,6 +103,7 @@ def scrape_klook_and_capture_headers():
     driver = None
     captured_headers = None
     captured_request = None
+    user_data_dir = None
     
     try:
         print(f"\n⏳ Initializing browser...")
@@ -414,6 +427,13 @@ def scrape_klook_and_capture_headers():
             print("\n🔒 Closing browser...")
             driver.quit()
             print("✅ Browser closed")
+        
+        # Clean up temporary user data directory
+        if 'user_data_dir' in locals() and user_data_dir:
+            try:
+                shutil.rmtree(user_data_dir, ignore_errors=True)
+            except Exception as cleanup_error:
+                pass  # Ignore cleanup errors
 
 if __name__ == "__main__":
     headers = scrape_klook_and_capture_headers()
