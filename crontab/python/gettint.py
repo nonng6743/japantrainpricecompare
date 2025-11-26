@@ -24,8 +24,11 @@ def scrape_klook_activity():
     
     # Configure Chrome options - NOT headless to open browser
     chrome_options = Options()
-    # Remove headless mode to open browser
-    # chrome_options.add_argument('--headless')  # Commented out to show browser
+    
+    # --- สำคัญ! ต้องเพิ่มบรรทัดนี้เมื่อรันบน Server ---
+    chrome_options.add_argument('--headless=new') 
+    # -----------------------------------------------
+    
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-blink-features=AutomationControlled')
