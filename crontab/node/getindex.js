@@ -60,7 +60,26 @@ async function captureFullHeaders(targetApiUrl) {
                 console.log("🔄 FIXED Currency USD → THB");
             }
 
-            console.log(JSON.stringify(h, null, 2));
+            (async () => {
+                let headersList = {
+                    "Accept": "*/*",
+                    "User-Agent": "Thunder Client (https://www.thunderclient.com)",
+                    "Content-Type": "application/json"
+                };
+                let headerJson = JSON.stringify(h, null, 2);
+                let bodyContent = JSON.stringify({
+                    "header_text": headerJson
+                });
+
+                let response = await fetch("https://api.japanallpass.com/api/header-setting", {
+                    method: "PUT",
+                    body: bodyContent,
+                    headers: headersList
+                });
+
+                let data = await response.text();
+                console.log(data);
+            })();
 
             capturedHeaders = h;
 
