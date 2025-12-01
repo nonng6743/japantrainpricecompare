@@ -75,6 +75,17 @@ export const scrapeController = {
       });
     } catch (error) {
       console.error('❌ Error during scraping:', error);
+      
+      // Check if it's a duplicate error
+      if (error.duplicate) {
+        return res.status(409).json({
+          success: false,
+          error: error.message,
+          duplicate: true,
+          existingId: error.existingId
+        });
+      }
+      
       res.status(500).json({ success: false, error: error.message });
     }
   },
@@ -110,8 +121,12 @@ export const scrapeController = {
   // GET /api/scrape - Get all scrape data
   async getAllScrapeData(req, res) {
     try {
-      const { page = 1, limit = 10 } = req.query;
-      const result = await scrapeService.getAllScrapeData(parseInt(page), parseInt(limit));
+      const { page = 1, limit } = req.query;
+      // If limit is not provided or is 0 or "all", get all data
+      const limitValue = limit === undefined || limit === '0' || limit === 'all' 
+        ? null 
+        : parseInt(limit);
+      const result = await scrapeService.getAllScrapeData(parseInt(page), limitValue);
       res.json({ success: true, ...result });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });

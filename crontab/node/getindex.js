@@ -1,5 +1,5 @@
-const puppeteer = require("puppeteer-core");
-const fs = require("fs");
+import puppeteer from "puppeteer-core";
+import fs from "fs";
 
 const CHROME_PATH = "/usr/bin/google-chrome";
 

@@ -269,6 +269,17 @@ export const scrapeService = {
     try {
       console.log('🔧 Service: Creating new scrape data');
       
+      // Check for duplicate no_product
+      if (data.no_product) {
+        const existingData = await ScrapeData.findOne({ no_product: data.no_product });
+        if (existingData) {
+          const error = new Error(`no_product "${data.no_product}" already exists`);
+          error.duplicate = true;
+          error.existingId = existingData._id;
+          throw error;
+        }
+      }
+      
       // Parse price if provided
       if (data.price_product && typeof data.price_product === 'string') {
         data.price_product = parseFloat(data.price_product.replace(/,/g, ''));
@@ -286,19 +297,36 @@ export const scrapeService = {
   },
 
   // READ - Get all scrape data
-  async getAllScrapeData(page = 1, limit = 10) {
+  async getAllScrapeData(page = 1, limit = null) {
     try {
       console.log('🔧 Service: Getting all scrape data');
       
+      let query = ScrapeData.find().sort({ createdAt: -1 });
+      
+      // If limit is null, get all data without pagination
+      if (limit === null) {
+        const data = await query;
+        const total = await ScrapeData.countDocuments();
+        
+        console.log(`✅ Service: Found ${data.length} records (all data)`);
+        return {
+          data,
+          pagination: {
+            page: 1,
+            limit: null,
+            total,
+            pages: 1
+          }
+        };
+      }
+      
+      // Otherwise, use pagination
       const skip = (page - 1) * limit;
-      const data = await ScrapeData.find()
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+      const data = await query.skip(skip).limit(limit);
       
       const total = await ScrapeData.countDocuments();
       
-      console.log(`✅ Service: Found ${data.length} records`);
+      console.log(`✅ Service: Found ${data.length} records (page ${page}, limit ${limit})`);
       return {
         data,
         pagination: {

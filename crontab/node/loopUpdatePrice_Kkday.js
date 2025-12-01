@@ -143,7 +143,14 @@ async function getKkday(params = {}) {
               });
             }
 
-            const price = sku.single_price?.fullday || null;
+            // Get price from item.sale_price (min_price or max_price)
+            // If single_price.fullday exists, use it; otherwise use item.sale_price
+            const price = sku.single_price?.fullday 
+              || item.sale_price?.min_price 
+              || item.sale_price?.max_price 
+              || pkg.sale_price?.min_price 
+              || pkg.sale_price?.max_price 
+              || null;
 
             // If sku_id is provided, match it with current sku_oid
             if (sku_id && skuId === sku_id) {
