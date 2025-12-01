@@ -291,45 +291,10 @@ export const scrapeController = {
     }
   },
 
+  
+
   async getKlook(req, res) {
     const URL = 'https://www.klook.com/v1/experiencesrv/order/settlement_service/pre_settlement';
-    const HEADERS = {
-      _pt: '9c9bb075-45c9-4a79-b7dc-cca8a11fa87f',
-      accept: 'application/json, text/plain, */*',
-      'accept-language': 'en_BS',
-      baggage:
-        'sentry-environment=production,sentry-release=ttdnode_20251112_35e7f8a8,sentry-public_key=97e83362921d08236f56e23cb4d960c9,sentry-trace_id=d15d52a981094fd3b20cc496ab62b12d',
-      'cache-control': 'no-cache',
-      'content-type': 'application/json',
-      currency: 'THB',
-      priority: 'u=1, i',
-      'sec-ch-device-memory': '8',
-      'sec-ch-ua': '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
-      'sec-ch-ua-arch': '"x86"',
-      'sec-ch-ua-full-version-list':
-        '"Chromium";v="142.0.7444.135", "Google Chrome";v="142.0.7444.135", "Not_A Brand";v="99.0.0.0"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-model': '""',
-      'sec-ch-ua-platform': '"Windows"',
-      'sec-fetch-dest': 'empty',
-      'sec-fetch-mode': 'cors',
-      'sec-fetch-site': 'same-origin',
-      'sentry-trace': 'd15d52a981094fd3b20cc496ab62b12d-97d698b2b88472c9',
-      token: '',
-      'x-klook-affiliate-aid': '',
-      'x-klook-affiliate-pid': '',
-      'x-klook-host': 'www.klook.com',
-      'x-klook-kepler-id': '9bbf75c2-df0a-43d0-b654-923bfb54bf51',
-      'x-klook-market': 'global',
-      'x-klook-page-open-id': '',
-      'x-klook-tint':
-        '{"kepler":["253:861","669:3215","684:3546","694:3667","695:3674","706:3783","732:4304","741:4469","761:4623","768:4732","778:4888","779:4897","780:4903","787:4996","788:5005","818:5278","822:5363","851:5735","853:5740","854:5751","855:5752","871:5974","877:6067","885:6186","901:6288","910:6455","931:6736","933:6751","936:9309","948:7023","969:7423","970:7425","978:7536","980:7551","994:7879","1006:8210","1016:8314","1017:8338","1020:8414","1038:8663","1058:9017","1084:9630","1091:9724","1128:10287","1147:10834","1171:11684","1172:11691","1180:11872","1191:12047","1193:12101","1205:12359","1206:12362","1209:12385","1219:12858","1226:13132","1229:13466","1233:13338","1243:13401","1245:13481","1264:13863","1295:15296","1298:15429","1304:15491","1309:15662","1315:15687","1334:16177","1339:16217","1340:16222","1350:16662","1351:16664","1357:16745","1358:16742","1364:16919","1369:17000","1371:17009","1372:17053","1375:17137","1378:17204","1379:17209","1382:17314","1386:17615","1397:18048","1452:19742","1487:20706","1522:21328","1533:21689","1537:21796","1572:22732","1573:22735","1574:22738","1599:23643","1600:23646","1602:23675","1604:23680","1605:23682","1606:24267","1623:23861","1663:24742","1664:24744","1665:24750","1666:24760","1667:24772","1690:25402","1691:26210","1692:26200","1693:26203","1694:26859","1695:26856","1696:26853","1697:26193","1711:25664","1715:25836","1718:25877","1719:25878","1727:26084","1734:26276","1736:26379","1741:26402","1769:27015","1783:27640","1792:27883","1793:27885","1794:27887","1801:28078"]}',
-      'x-klook-user-residence': '4_TH',
-      'x-platform': 'desktop',
-      'x-requested-with': 'XMLHttpRequest',
-      referer:
-        'https://www.klook.com/activity/49927-jr-east-tokyo-tokyowidepass/?spm=SearchResult.SearchResult_LIST&clickId=7a5065c05d'
-    };
 
     const {
       page_from = 2,
@@ -347,6 +312,27 @@ export const scrapeController = {
     };
 
     try {
+      // Get headers from remote API
+      const headerRes = await axios.get("https://api.hellopassxyz.com/api/header-setting", { timeout: 5000 });
+      let HEADERS = {};
+      if (
+        headerRes &&
+        headerRes.data &&
+        headerRes.data.header_text
+      ) {
+        try {
+          HEADERS = JSON.parse(headerRes.data.header_text);
+        } catch (err) {
+          console.error("Error parsing header_text from remote API:", err);
+          return res.status(500).json({ success: false, error: "Failed to parse header_text from header-setting API" });
+        }
+      } else {
+        return res.status(500).json({ success: false, error: "No header_text found in header-setting API" });
+      }
+
+      // Always make sure content-type is present
+      if (!HEADERS['content-type']) HEADERS['content-type'] = 'application/json';
+
       const response = await axios.post(URL, payload, { headers: HEADERS, timeout: 20000 });
       res.json({ success: true, data: response.data });
     } catch (error) {
