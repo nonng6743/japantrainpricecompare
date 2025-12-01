@@ -72,13 +72,75 @@ async function getKlook(params = {}) {
     const responseData = response.data;
     let priceValue = null;
     
-    // Priority 1: Use total_price (ราคารวมทั้งหมด)
-    if (responseData?.result?.total_price) {
-      priceValue = responseData.result.total_price;
-      console.log(`💰 Total price: ${priceValue}`);
+    // Priority 1: Use Market Price from SKU with quantity = 1
+    // Find SKU with quantity = 1 from request payload
+    const skuWithQuantity1 = payload.sku_list?.find(sku => sku.quantity === 1);
+    
+    if (skuWithQuantity1 && responseData?.result?.sku_list) {
+      // Find matching SKU in response by sku_id
+      const matchingSku = responseData.result.sku_list.find(
+        sku => sku.sku_id === skuWithQuantity1.sku_id
+      );
+      
+      if (matchingSku) {
+        // Use market_price_text if available, otherwise use original_price_text
+        if (matchingSku.market_price_text && matchingSku.market_price_text.trim() !== '') {
+          priceValue = matchingSku.market_price_text;
+          console.log(`💰 Market Price from SKU ${skuWithQuantity1.sku_id}: ${priceValue}`);
+        } else if (matchingSku.original_price_text && matchingSku.original_price_text.trim() !== '') {
+          priceValue = matchingSku.original_price_text;
+          console.log(`💰 Original Price from SKU ${skuWithQuantity1.sku_id} (market_price not available): ${priceValue}`);
+        }
+      }
     }
-    // Priority 2: If no total_price, try to sum all SKU prices from price_summary
-    else if (responseData?.result?.price_summary?.package_list) {
+    
+    // Priority 2: If no Market Price found, try to find any SKU with quantity = 1 from price_summary
+    if (!priceValue && responseData?.result?.price_summary?.package_list) {
+      // Get all SKU IDs with quantity = 1 from payload
+      const skuIdsWithQty1 = payload.sku_list
+        ?.filter(sku => sku.quantity === 1)
+        .map(sku => sku.sku_id) || [];
+      
+      for (const packageItem of responseData.result.price_summary.package_list) {
+        if (packageItem.sku_list && Array.isArray(packageItem.sku_list)) {
+          for (const skuItem of packageItem.sku_list) {
+            // Check if this SKU has quantity = 1 and has market price info
+            // Note: price_summary.sku_list doesn't have sku_id, so we check by count
+            if (skuItem.count && skuItem.count.includes('x 1')) {
+              // Try to find in sku_list by matching text or use value
+              if (skuItem.value) {
+                // Try to find corresponding SKU in result.sku_list
+                const matchingSku = responseData.result.sku_list?.find(
+                  sku => sku.original_price_text === skuItem.value || 
+                         sku.market_price_text === skuItem.value
+                );
+                
+                if (matchingSku?.market_price_text && matchingSku.market_price_text.trim() !== '') {
+                  priceValue = matchingSku.market_price_text;
+                  console.log(`💰 Market Price from package (qty=1): ${priceValue}`);
+                  break;
+                } else if (skuItem.value) {
+                  // Fallback to value if market_price not found
+                  priceValue = skuItem.value;
+                  console.log(`💰 Price from package (qty=1, market_price not available): ${priceValue}`);
+                  break;
+                }
+              }
+            }
+          }
+          if (priceValue) break;
+        }
+      }
+    }
+    
+    // Priority 3: Fallback to total_price (ราคารวมทั้งหมด)
+    if (!priceValue && responseData?.result?.total_price) {
+      priceValue = responseData.result.total_price;
+      console.log(`💰 Total price (fallback): ${priceValue}`);
+    }
+    
+    // Priority 4: Fallback to sum all SKU prices from price_summary
+    if (!priceValue && responseData?.result?.price_summary?.package_list) {
       let totalSum = 0;
       let foundPrices = [];
       
@@ -99,17 +161,18 @@ async function getKlook(params = {}) {
       
       if (totalSum > 0) {
         priceValue = `฿ ${totalSum.toLocaleString()}`;
-        console.log(`💰 Sum of all SKU prices: ${priceValue} (from ${foundPrices.length} items)`);
+        console.log(`💰 Sum of all SKU prices (fallback): ${priceValue} (from ${foundPrices.length} items)`);
       }
     }
-    // Priority 3: Fallback to first SKU price (for backward compatibility)
+    
+    // Priority 5: Final fallback to first SKU price
     if (!priceValue && responseData?.result?.price_summary?.package_list) {
       for (const packageItem of responseData.result.price_summary.package_list) {
         if (packageItem.sku_list && Array.isArray(packageItem.sku_list)) {
           for (const skuItem of packageItem.sku_list) {
             if (skuItem.value) {
               priceValue = skuItem.value;
-              console.log(`💰 First SKU price (fallback): ${priceValue}`);
+              console.log(`💰 First SKU price (final fallback): ${priceValue}`);
               break;
             }
           }
