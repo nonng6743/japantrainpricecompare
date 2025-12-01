@@ -6,6 +6,7 @@ import scrapeRoutes from './routes/scrapeRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import priceLogRoutes from './routes/priceLogRoutes.js';
 import discountLogRoutes from './routes/discountLogRoutes.js';
+import headerSettingRoutes from './routes/headerSettingRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -19,6 +20,7 @@ app.use('/api/scrape', scrapeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/price-log', priceLogRoutes);
 app.use('/api/discount-log', discountLogRoutes);
+app.use('/api/header-setting', headerSettingRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
