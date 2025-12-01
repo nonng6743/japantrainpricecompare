@@ -176,72 +176,149 @@ export default function ContactPage() {
     }
   };
 
-  // ฟังก์ชัน map ข้อมูลจาก products_plans
+  // ฟังก์ชัน auto-fill ราคา JP จาก products_plans
+  const normalizeText = (value?: string) =>
+    (value ?? "")
+      .toString()
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase()
+
+  const looselyMatch = (source: string, target: string) => {
+    if (!source || !target) return false
+    return source === target || source.includes(target) || target.includes(source)
+  }
+
+  const findPlanByNameDay = (plans: any[], name: string, day: string) => {
+    const targetName = normalizeText(name)
+    const targetDay = normalizeText(day)
+
+    if (!targetName || !targetDay) {
+      console.warn("⚠️ findPlanByNameDay requires both name & day", { name, day })
+      return null
+    }
+
+    return (
+      plans.find((plan) => {
+        const planName = normalizeText(plan.name)
+        const planDay = normalizeText(plan.day)
+
+        // เช็ค day ก่อน (ต้องตรงกันหรือคล้ายกัน)
+        const dayMatch = planDay === targetDay || looselyMatch(planDay, targetDay)
+        if (!dayMatch) return false
+
+        // เช็ค name แบบยืดหยุ่น - รองรับกรณีที่มีคำเพิ่มเติมข้างหน้า/หลัง
+        // เช่น "Railway Museum Pupil" กับ "Kyoto Railway Museum Pupil"
+        const nameMatch = 
+          planName === targetName || 
+          planName.includes(targetName) || 
+          targetName.includes(planName) ||
+          // เช็คว่าคำสำคัญตรงกัน (แยกเป็นคำแล้วเช็คว่าคำสำคัญทั้งหมดมีใน plan)
+          (() => {
+            // แยกเป็นคำและกรองคำสั้นๆ (< 3 ตัวอักษร)
+            const planWords = planName.split(/\s+/).filter(w => w.length >= 3)
+            const targetWords = targetName.split(/\s+/).filter(w => w.length >= 3)
+            
+            // ถ้ามีคำสำคัญน้อยกว่า 2 คำ ให้ใช้วิธีเดิม
+            if (targetWords.length < 2) {
+              return looselyMatch(planName, targetName)
+            }
+            
+            // เช็คว่าคำสำคัญทั้งหมดใน target อยู่ใน plan หรือไม่ (อนุโลมการเรียงลำดับ)
+            const allWordsMatch = targetWords.every(targetWord => 
+              planWords.some(planWord => 
+                planWord.includes(targetWord) || targetWord.includes(planWord)
+              )
+            )
+            
+            return allWordsMatch
+          })()
+
+        if (nameMatch && dayMatch) {
+          console.log("✅ Plan matched", {
+            inputName: name,
+            inputDay: day,
+            planName: plan.name,
+            planDay: plan.day,
+            planPrice: plan.initial_price,
+          })
+          return true
+        }
+
+        return false
+      }) || null
+    )
+  }
+
   const mapProductsPlans = (name: string, day: string) => {
-    const matchingPlan = productsPlans.find(plan =>
-      plan.name.toLowerCase() === name.toLowerCase() &&
-      plan.day.toLowerCase() === day.toLowerCase()
-    );
+    if (!productsPlans.length) return null
+
+    const hasName = !!name?.trim()
+    const hasDay = !!day?.trim()
+    if (!hasName || !hasDay) {
+      console.warn("⚠️ mapProductsPlans requires both name & day", { name, day })
+      return null
+    }
+
+    const matchingPlan = findPlanByNameDay(productsPlans, name, day)
 
     if (matchingPlan) {
+      console.log("✅ mapProductsPlans matched", {
+        inputName: name,
+        inputDay: day,
+        plan: matchingPlan,
+      })
       return {
         priceJP: matchingPlan.initial_price,
         name: matchingPlan.name,
-        day: matchingPlan.day
-      };
+        day: matchingPlan.day,
+      }
     }
 
-    return null;
-  };
+    console.warn("⚠️ mapProductsPlans no match", { name, day })
+    return null
+  }
 
-  // ฟังก์ชัน auto-fill ราคา JP จาก products_plans
   const autoFillPricesFromPlans = (plans: any[]) => {
-    // Auto-fill KKDay - เฉพาะช่องที่มีชื่อและวันแล้ว
-    const updatedKKDay = dynamicInputsKKDay.map(input => {
-      // ถ้ามีชื่อและวันแล้ว ให้ค้นหาราคาจาก plans
-      if (input.name && input.day) {
-        const matchingPlan = plans.find(plan =>
-          plan.name.toLowerCase() === input.name.toLowerCase() &&
-          plan.day.toLowerCase() === input.day.toLowerCase()
-        );
+    const fillInputs = (inputs: any[], source: "kkday" | "klook") =>
+      inputs.map((input) => {
+        if (!input.name?.trim() || !input.day?.trim()) return input
+        if (!input.name?.trim() || !input.day?.trim()) return input
+
+        const matchingPlan = findPlanByNameDay(plans, input.name, input.day)
 
         if (matchingPlan) {
+          console.log("✅ Auto-fill matched plan", {
+            source,
+            inputId: input.id,
+            plan: matchingPlan,
+          })
           return {
             ...input,
-            priceJP: matchingPlan.initial_price
-          };
+            priceJP: matchingPlan.initial_price,
+            name: matchingPlan.name || input.name,
+            day: matchingPlan.day || input.day,
+          }
         }
-      }
 
-      return input;
-    });
+        console.warn("⚠️ ไม่พบ plan ที่ตรงกับ input:", {
+          source,
+          inputName: input.name,
+          inputDay: input.day,
+        })
 
-    // Auto-fill KLook - เฉพาะช่องที่มีชื่อและวันแล้ว
-    const updatedKLook = dynamicInputsKLook.map(input => {
-      // ถ้ามีชื่อและวันแล้ว ให้ค้นหาราคาจาก plans
-      if (input.name && input.day) {
-        const matchingPlan = plans.find(plan =>
-          plan.name.toLowerCase() === input.name.toLowerCase() &&
-          plan.day.toLowerCase() === input.day.toLowerCase()
-        );
+        return input
+      })
 
-        if (matchingPlan) {
-          return {
-            ...input,
-            priceJP: matchingPlan.initial_price
-          };
-        }
-      }
+    const updatedKKDay = fillInputs(dynamicInputsKKDay, "kkday")
+    const updatedKLook = fillInputs(dynamicInputsKLook, "klook")
 
-      return input;
-    });
+    setDynamicInputsKKDay(updatedKKDay)
+    setDynamicInputsKLook(updatedKLook)
 
-    setDynamicInputsKKDay(updatedKKDay);
-    setDynamicInputsKLook(updatedKLook);
-
-    console.log("🔄 Auto-filled KKDay:", updatedKKDay);
-    console.log("🔄 Auto-filled KLook:", updatedKLook);
-  };
+    console.log("🔄 Auto-filled KKDay:", updatedKKDay)
+    console.log("🔄 Auto-filled KLook:", updatedKLook)
+  }
 
   const handleFetchBackendKlook = async () => {
     setBackendKlookError(null)
@@ -364,12 +441,9 @@ export default function ContactPage() {
         const updatedInput = { ...input, [field]: value };
 
         // ถ้าเป็นการเปลี่ยน name หรือ day ให้ auto-fill priceJP
-        if (field === 'name' || field === 'day') {
+        if ((field === 'name' || field === 'day') && updatedInput.name.trim() && updatedInput.day.trim()) {
           const mappedData = mapProductsPlans(updatedInput.name, updatedInput.day);
-          if (mappedData) {
-            updatedInput.priceJP = mappedData.priceJP;
-            updatedInput.name = mappedData.name;
-          }
+          updatedInput.priceJP = mappedData ? mappedData.priceJP : "";
         }
 
         return updatedInput;
@@ -395,12 +469,9 @@ export default function ContactPage() {
         const updatedInput = { ...input, [field]: value };
 
         // ถ้าเป็นการเปลี่ยน name หรือ day ให้ auto-fill priceJP
-        if (field === 'name' || field === 'day') {
+        if ((field === 'name' || field === 'day') && updatedInput.name.trim() && updatedInput.day.trim()) {
           const mappedData = mapProductsPlans(updatedInput.name, updatedInput.day);
-          if (mappedData) {
-            updatedInput.priceJP = mappedData.priceJP;
-            updatedInput.name = mappedData.name;
-          }
+          updatedInput.priceJP = mappedData ? mappedData.priceJP : "";
         }
 
         return updatedInput;
@@ -516,15 +587,20 @@ export default function ContactPage() {
       });
 
       const data = await response.json();
+      console.log("📦 Response data:", data);
 
       if (!response.ok) {
         // Handle HTTP errors with detailed message
-        alert(`เกิดข้อผิดพลาด (${response.status}): ${data.error || 'ไม่ทราบสาเหตุ'}`);
+        const errorMsg = data.error || data.message || 'ไม่ทราบสาเหตุ';
+        alert(`❌ เพิ่มข้อมูลไม่สำเร็จ (HTTP ${response.status})\n\nข้อผิดพลาด: ${errorMsg}`);
         return;
       }
 
       if (data.success) {
         // Handle successful response
+        const successMsg = data.message || 'ข้อมูลถูกบันทึกเรียบร้อยแล้ว';
+        alert(`✅ เพิ่มข้อมูลสำเร็จ!\n\n${successMsg}\n\nชื่อสินค้า: ${nameProduct || nameParamiter}\nราคา: ${priceProduct}`);
+        
         // Reset form
         setNameParamiter("");
         setNameProduct("");
@@ -538,16 +614,17 @@ export default function ContactPage() {
         setProductsPlans([]);
       } else {
         // Handle failure response
-        alert("เกิดข้อผิดพลาด: " + data.error);
+        const errorMsg = data.error || data.message || 'ไม่ทราบสาเหตุ';
+        alert(`❌ เพิ่มข้อมูลไม่สำเร็จ\n\nข้อผิดพลาด: ${errorMsg}`);
       }
     } catch (error) {
       // Handle network or other errors
-      console.error("Error:", error);
+      console.error("❌ Error:", error);
       let errorMessage = "เกิดข้อผิดพลาดในการเชื่อมต่อ API";
       if (error instanceof Error) {
-        errorMessage += ": " + error.message;
+        errorMessage += `\n\nรายละเอียด: ${error.message}`;
       }
-      alert(errorMessage);
+      alert(`❌ ${errorMessage}`);
     }
   };
 

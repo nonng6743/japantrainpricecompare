@@ -80,6 +80,12 @@ export default function HomePage() {
     ]
   }, null, 2))
 
+  const getPlanKey = (plan: any) => {
+    if (!plan) return ""
+    if (plan.products_plans_id) return String(plan.products_plans_id)
+    return `${plan.name || ""}|${plan.day || ""}`.toLowerCase()
+  }
+
   const transformPlansFromResponse = (responseData: any) => {
     if (!responseData) return []
 
@@ -136,22 +142,87 @@ export default function HomePage() {
     return itemWithPlans?.products_plans ?? []
   }
 
-  const normalizeText = (value?: string) => (value ?? "").toString().trim().toLowerCase()
+  const normalizeText = (value?: string) =>
+    (value ?? "")
+      .toString()
+      .replace(/\s+/g, " ") // รวม newline/tab ให้เป็น space เดียว
+      .trim()
+      .toLowerCase()
 
-  // ฟังก์ชันดึงข้อมูล products_plans
-  const fetchProductsPlans = async (productId: string) => {
-    try {
-      const encodedId = encodeURIComponent((productId ?? "").trim())
-      const response = await fetch(`https://api.japanallpass.com/api/products/product_read_paramiter?product_params=${encodedId}`)
-      const data = await response.json()
+  const findPlanByKey = (plans: any[], key: string) => {
+    if (!key) return null
+    return plans.find((plan) => getPlanKey(plan) === key) || null
+  }
 
+  // ฟังก์ชันดึงข้อมูล products_plans (ลองหลาย key เพื่อให้ตรงกับ product_params จริง)
+  const fetchProductsPlans = async (productInfo: any) => {
+    if (!productInfo) {
+      setProductsPlans([])
+      return
+    }
+
+    const candidateKeys = [
+      productInfo.product_params,
+      productInfo.name_paramiter,
+      productInfo.name_paramiter?.trim?.(),
+      productInfo.no_product,
+      productInfo.id_api,
+    ]
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter((value, index, self) => value && self.indexOf(value) === index)
+
+    console.log("🗂️ Candidates for products_plans:", candidateKeys)
+
+    for (const key of candidateKeys) {
+      try {
+        const encodedKey = encodeURIComponent(key)
+        const response = await fetch(`https://api.japanallpass.com/api/products/product_read_paramiter?product_params=${encodedKey}`)
+
+        if (!response.ok) {
+          console.warn(`⚠️ products_plans fetch failed for key "${key}" (status ${response.status})`)
+          continue
+        }
+
+        const data = await response.json()
       const plans = transformPlansFromResponse(data)
+        console.log(`📦 Products Plans (key: ${key}):`, plans)
+
+        if (Array.isArray(plans) && plans.length > 0) {
       setProductsPlans(plans)
-      console.log("📦 Products Plans (transformed):", plans)
+          return
+        }
     } catch (error) {
-      console.error("❌ Error fetching products plans:", error)
+        console.error(`❌ Error fetching products plans with key "${key}":`, error)
+      }
+    }
+
       setProductsPlans([])
     }
+
+  const handlePlanSelection = (source: "kkday" | "klook", inputId: number, planKey: string) => {
+    const plan = findPlanByKey(productsPlans, planKey)
+    if (!plan) return
+
+    const updateInput = (input: any) => {
+      if (input.id !== inputId) return input
+      return {
+        ...input,
+        priceJP: plan.initial_price?.toString() || "",
+        name: plan.name || "",
+        day: plan.day || "",
+      }
+    }
+
+    if (source === "kkday") {
+      setDynamicInputsKKDay((prev) => prev.map(updateInput))
+    } else {
+      setDynamicInputsKLook((prev) => prev.map(updateInput))
+    }
+  }
+
+  const looselyMatch = (source: string, target: string) => {
+    if (!source || !target) return false
+    return source === target || source.includes(target) || target.includes(source)
   }
 
   const findMatchingPlan = (plans: any[], name: string, day: string) => {
@@ -163,15 +234,15 @@ export default function HomePage() {
       const planDay = normalizeText(plan.day)
 
       if (targetName && targetDay) {
-        return planName === targetName && planDay === targetDay
+        return looselyMatch(planName, targetName) && looselyMatch(planDay, targetDay)
       }
 
       if (targetName) {
-        return planName === targetName
+        return looselyMatch(planName, targetName)
       }
 
       if (targetDay) {
-        return planDay === targetDay
+        return looselyMatch(planDay, targetDay)
       }
 
       return false
@@ -182,7 +253,15 @@ export default function HomePage() {
   const mapProductsPlans = (name: string, day: string) => {
     const matchingPlan = findMatchingPlan(productsPlans, name, day)
 
+    console.log("🔎 mapProductsPlans lookup", {
+      inputName: name,
+      inputDay: day,
+      plansAvailable: productsPlans.length,
+      matched: Boolean(matchingPlan),
+    })
+
     if (matchingPlan) {
+      console.log("✅ Found matching plan:", matchingPlan)
       return {
         priceJP: matchingPlan.initial_price,
         name: matchingPlan.name,
@@ -190,6 +269,7 @@ export default function HomePage() {
       }
     }
 
+    console.warn("❌ No matching plan found for:", { name, day })
     return null
   }
 
@@ -660,9 +740,7 @@ export default function HomePage() {
     }
 
     // ดึงข้อมูล products_plans
-    if (product.no_product) {
-      await fetchProductsPlans(product.no_product)
-    }
+    await fetchProductsPlans(product)
 
     setIsEditDialogOpen(true)
   }
@@ -1078,7 +1156,12 @@ export default function HomePage() {
                         return (
                           <div key={`${product._id}-${index}`} className="border rounded-lg p-4 bg-gray-50">
                             <div className="flex items-center justify-between mb-4">
-                              <h4 className="font-semibold text-lg text-gray-900">{pkg.name}</h4>
+                              <h4 className="font-semibold text-lg text-gray-900">
+                                {pkg.name}
+                                {pkg.day && pkg.day !== "default" && (
+                                  <span className="text-base font-normal text-gray-600 ml-2">({pkg.day})</span>
+                                )}
+                              </h4>
                               {bestProvider && bestPrice > 0 && (
                                 <div className="text-right">
                                   <div className="text-lg font-bold text-green-600">฿{formatPrice(bestPrice)}</div>
@@ -1434,6 +1517,23 @@ export default function HomePage() {
                     )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {productsPlans.length > 0 && (
+                      <div className="md:col-span-4">
+                        <Label className="text-blue-700 text-sm">เลือกจาก Products Plans</Label>
+                        <Select onValueChange={(value) => handlePlanSelection("kkday", input.id, value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="เลือกแผน" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {productsPlans.map((plan) => (
+                              <SelectItem key={`kkday-plan-${getPlanKey(plan)}`} value={getPlanKey(plan)}>
+                                {plan.day ? `${plan.day} • ${plan.name}` : plan.name || "ไม่ทราบชื่อ"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div>
                       <Label htmlFor={`edit-kkday-screenshotPath-${input.id}`}>Screenshot Path</Label>
                       <Input
@@ -1562,6 +1662,23 @@ export default function HomePage() {
                       </Button>
                     )}
                   </div>
+                  {productsPlans.length > 0 && (
+                    <div>
+                      <Label className="text-green-700 text-sm">เลือกจาก Products Plans</Label>
+                      <Select onValueChange={(value) => handlePlanSelection("klook", input.id, value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="เลือกแผน" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {productsPlans.map((plan) => (
+                            <SelectItem key={`klook-plan-${getPlanKey(plan)}`} value={getPlanKey(plan)}>
+                              {plan.day ? `${plan.day} • ${plan.name}` : plan.name || "ไม่ทราบชื่อ"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor={`edit-klook-screenshotPath-${input.id}`}>Screenshot Path</Label>
